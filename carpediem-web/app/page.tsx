@@ -4,22 +4,38 @@ import { useRouter } from "next/navigation";
 import { signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/lib/AuthContext";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 export default function Home() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
-  useEffect(() => {
+useEffect(() => {
     if (!loading && user) {
-      router.push("/dashboard");
+      const checkOnboarding = async () => {
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        if (!userDoc.exists() || !userDoc.data()?.onboardingComplete) {
+          router.push("/onboarding");
+        } else {
+          router.push("/checkin");
+        }
+      };
+      checkOnboarding();
     }
   }, [user, loading, router]);
 
   const handleGoogle = async () => {
     const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
-      router.push("/dashboard");
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+      const userDoc = await getDoc(doc(db, "users", user.uid));
+      if (!userDoc.exists() || !userDoc.data()?.onboardingComplete) {
+        router.push("/onboarding");
+      } else {
+        router.push("/checkin");
+      }
     } catch (error) {
       console.error(error);
     }

@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+#Temporal - no quiero que suba la api key a github
+carpediem-web/lib/firebase.ts
