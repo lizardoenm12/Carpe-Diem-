@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { collection, addDoc, getDocs, query, where, orderBy, updateDoc, doc } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
+import Sidebar from "@/components/Sidebar";
 
 type Evento = {
   id: string;
@@ -35,20 +36,6 @@ const getGradiente = (dias: number) => {
   if (dias <= 7) return "#E8C84A";
   if (dias <= 14) return "#7DBF9E";
   return "#B2D8B2";
-};
-
-const Sidebar = ({ onNavigate }: { onNavigate: (ruta: string) => void }) => {
-  const rutas = ["/dashboard", "/calendario", "/juegos", "/racha", "/bienestar"];
-  const iconos = ["🏠","📅","🎮","⏳","🧘"];
-  return (
-    <aside style={{width:"64px",background:"white",borderRight:"0.5px solid #e0e0e0",display:"flex",flexDirection:"column",alignItems:"center",paddingTop:"24px",gap:"16px",minHeight:"100vh"}}>
-      {iconos.map((icon, i) => (
-        <div key={i} onClick={() => onNavigate(rutas[i])} style={{width:"40px",height:"40px",borderRadius:"10px",background:i===1?"#E1F5EE":"transparent",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"18px",cursor:"pointer"}}>
-          {icon}
-        </div>
-      ))}
-    </aside>
-  );
 };
 
 export default function Calendario() {
@@ -163,7 +150,7 @@ export default function Calendario() {
 
   return (
     <main style={{display:"flex",minHeight:"100vh",background:"#F5F5DC"}}>
-      <Sidebar onNavigate={(ruta) => router.push(ruta)} />
+      <Sidebar />
 
       <section style={{flex:1,padding:"32px",display:"flex",gap:"24px",alignItems:"flex-start"}}>
 

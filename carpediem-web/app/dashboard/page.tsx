@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
+import Sidebar from "@/components/Sidebar";
 
 const emociones = [
   { label: "Genial", emoji: "✨", color: "#52C788", fondo: "#EDFBF3", nivel: 6, descripcion: "Me siento con energía y listo para todo" },
@@ -20,20 +21,6 @@ const getMensajeIA = (nivel: number, nombre: string) => {
   if (nivel === 3) return `Hola ${n}, entiendo que hay mucho. Vamos a dividirlo en piezas pequeñas. Hoy solo necesitas hacer una cosa.`;
   if (nivel === 2) return `Hola ${n}, las cosas no siempre salen como queremos. Hoy vamos con calma — un juego relajante puede ayudar.`;
   return `Hola ${n}, tu bienestar es lo primero. Hoy solo descansa. Mañana seguimos juntos.`;
-};
-
-const Sidebar = ({ onNavigate, actual }: { onNavigate: (ruta: string) => void, actual: string }) => {
-  const rutas = ["/dashboard", "/calendario", "/juegos", "/racha", "/bienestar"];
-  const iconos = ["🏠","📅","🎮","⏳","🧘"];
-  return (
-    <aside style={{width:"64px",background:"white",borderRight:"0.5px solid #e0e0e0",display:"flex",flexDirection:"column",alignItems:"center",paddingTop:"24px",gap:"16px",minHeight:"100vh"}}>
-      {iconos.map((icon, i) => (
-        <div key={i} onClick={() => onNavigate(rutas[i])} style={{width:"40px",height:"40px",borderRadius:"10px",background:actual===rutas[i]?"#E1F5EE":"transparent",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"18px",cursor:"pointer"}}>
-          {icon}
-        </div>
-      ))}
-    </aside>
-  );
 };
 
 export default function Dashboard() {
@@ -86,7 +73,7 @@ export default function Dashboard() {
   if (mostrarContenido) {
     return (
       <main style={{display:"flex",minHeight:"100vh",background:getBgColor(),transition:"background 0.5s"}}>
-        <Sidebar onNavigate={(ruta) => router.push(ruta)} actual="/dashboard" />
+        <Sidebar />
         <section style={{flex:1,padding:"32px"}}>
           <h1 style={{fontSize:"22px",fontWeight:"500",margin:"0 0 4px"}}>
             {nombreUsuario ? `Hola, ${nombreUsuario.split(" ")[0]} 👋` : "Tu Espacio de Calma"}
@@ -95,10 +82,11 @@ export default function Dashboard() {
 
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:"16px",marginBottom:"24px"}}>
             {[
-              { icon:"📚", titulo:"Apuntes", desc:"Tus notas organizadas", ruta:"/apuntes" },
               { icon:"📅", titulo:"Calendario", desc:"Tus próximas entregas", ruta:"/calendario" },
+              { icon:"📚", titulo:"Apuntes", desc:"Tus notas organizadas", ruta:"/apuntes" },
+              { icon:"⏳", titulo:"El Capitán", desc:"Tu tutor de estudio", ruta:"/capitan" },
               { icon:"🎮", titulo:"Juegos", desc:"Repasa sin estrés", ruta:"/juegos" },
-              { icon:"⏳", titulo:"Racha", desc:"Sigue tu progreso", ruta:"/racha" },
+              { icon:"🔥", titulo:"Racha", desc:"Sigue tu progreso", ruta:"/racha" },
             ].map((item) => (
               <div key={item.titulo} onClick={() => router.push(item.ruta)} style={{background:"white",borderRadius:"16px",padding:"20px",border:"0.5px solid #e0e0e0",cursor:"pointer"}}>
                 <p style={{fontSize:"13px",color:"#aaa",margin:"0 0 6px"}}>{item.icon} {item.titulo}</p>
@@ -108,7 +96,7 @@ export default function Dashboard() {
           </div>
 
           <div style={{background:"white",borderRadius:"16px",padding:"20px",border:"0.5px solid #e0e0e0"}}>
-            <p style={{fontSize:"12px",color:"#aaa",margin:"0 0 8px"}}>✨ Carpe Diem IA</p>
+            <p style={{fontSize:"12px",color:"#aaa",margin:"0 0 8px"}}>⏳ El Capitán</p>
             <p style={{fontSize:"14px",color:"#555",margin:"0",lineHeight:"1.7"}}>
               {getMensajeIA(nivelEmocion, nombreUsuario)}
             </p>
@@ -120,7 +108,7 @@ export default function Dashboard() {
 
   return (
     <main style={{display:"flex",minHeight:"100vh",background:"#F5F5DC"}}>
-      <Sidebar onNavigate={(ruta) => router.push(ruta)} actual="/dashboard" />
+      <Sidebar />
       <section style={{flex:1,padding:"32px",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
         <h1 style={{fontSize:"22px",fontWeight:"500",margin:"0 0 4px",textAlign:"center"}}>¿Cómo llegaste hoy?</h1>
         <p style={{fontSize:"13px",color:"#888",margin:"0 0 28px",textAlign:"center"}}>Tu respuesta ajusta tu sesión de estudio</p>
