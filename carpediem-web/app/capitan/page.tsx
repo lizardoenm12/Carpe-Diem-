@@ -4,7 +4,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { auth } from "@/lib/firebase";
 import Sidebar from "@/components/Sidebar";
 
-const genAI = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_GEMINI_API_KEY!);
+const genAI = new GoogleGenerativeAI("AIzaSyAKBuQjtSd82HubZGARSK0PAWRoNnX4WXk");
 
 type Mensaje = {
   rol: "usuario" | "capitan";
@@ -13,7 +13,7 @@ type Mensaje = {
 
 export default function Capitan() {
   const [mensajes, setMensajes] = useState<Mensaje[]>([
-    { rol: "capitan", texto: "¡Oh Capitán, mi Capitán! Soy el Capitán, tu tutor de estudio en Carpe Diem. ¿En qué te puedo ayudar hoy?" }
+    { rol: "capitan", texto: "Soy el Capitán, tu tutor de estudio en Carpe Diem. Siempre puedes llamartme con un buen ¡Oh Capitán, mi Capitán!" }
   ]);
   const [input, setInput] = useState("");
   const [cargando, setCargando] = useState(false);
@@ -27,7 +27,7 @@ export default function Capitan() {
     setCargando(true);
 
     try {
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
       const prompt = `Eres el Capitán, un tutor de estudio empático y motivador de la app Carpe Diem, inspirada en "Dead Poets Society". 
       Tu misión es ayudar a estudiantes (especialmente neurodivergentes) a estudiar sin estrés.
       Hablas de forma cálida, directa y alentadora. Nunca juzgas. Siempre fragmentas las tareas en pasos pequeños.
