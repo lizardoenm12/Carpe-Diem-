@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
-import Sidebar from "@/components/Sidebar";
 
 const emociones = [
   { label: "Genial", emoji: "✨", color: "#52C788", fondo: "#EDFBF3", nivel: 6, descripcion: "Me siento con energía y listo para todo" },
@@ -73,7 +72,7 @@ export default function Dashboard() {
   if (mostrarContenido) {
     return (
       <main style={{display:"flex",minHeight:"100vh",background:getBgColor(),transition:"background 0.5s"}}>
-        <Sidebar />
+      
         <section style={{flex:1,padding:"32px"}}>
           <h1 style={{fontSize:"22px",fontWeight:"500",margin:"0 0 4px"}}>
             {nombreUsuario ? `Hola, ${nombreUsuario.split(" ")[0]} 👋` : "Tu Espacio de Calma"}
@@ -108,7 +107,7 @@ export default function Dashboard() {
 
   return (
     <main style={{display:"flex",minHeight:"100vh",background:"#F5F5DC"}}>
-      <Sidebar />
+      
       <section style={{flex:1,padding:"32px",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
         <h1 style={{fontSize:"22px",fontWeight:"500",margin:"0 0 4px",textAlign:"center"}}>¿Cómo llegaste hoy?</h1>
         <p style={{fontSize:"13px",color:"#888",margin:"0 0 28px",textAlign:"center"}}>Tu respuesta ajusta tu sesión de estudio</p>

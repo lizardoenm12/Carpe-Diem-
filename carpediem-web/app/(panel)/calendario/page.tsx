@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { collection, addDoc, getDocs, query, where, orderBy, updateDoc, doc } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
-import Sidebar from "@/components/Sidebar";
 
 type Evento = {
   id: string;
@@ -150,7 +149,7 @@ export default function Calendario() {
 
   return (
     <main style={{display:"flex",minHeight:"100vh",background:"#F5F5DC"}}>
-      <Sidebar />
+    
 
       <section style={{flex:1,padding:"32px",display:"flex",gap:"24px",alignItems:"flex-start"}}>
 

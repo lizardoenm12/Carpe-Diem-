@@ -294,3 +294,24 @@ input {
 .back-btn:hover {
   background: #5a8dd3;
 }
+
+.panel-content {
+  flex: 1;
+  min-height: 100vh;
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-page {
+  flex: 1;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-scroll {
+  flex: 1;
+  overflow-y: auto;
+}
