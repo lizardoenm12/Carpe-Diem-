@@ -9,11 +9,7 @@ export default function PanelLayout({
   children,
 }: {
   children: React.ReactNode;
-}) 
-
-{
-
-  
+}) {
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const router = useRouter();
@@ -26,6 +22,7 @@ export default function PanelLayout({
         setIsAuthenticated(false);
         router.push("/");
       }
+
       setCheckingAuth(false);
     });
 
@@ -43,18 +40,21 @@ export default function PanelLayout({
           background: "#F5F5DC",
         }}
       >
-        <p style={{ fontSize: "16px", color: "#666" }}>Verificando sesión...</p>
+        <p style={{ fontSize: "16px", color: "#666" }}>
+          Verificando sesión...
+        </p>
       </main>
     );
   }
 
-  if (!isAuthenticated) return null;
+  if (!isAuthenticated) {
+    return null;
+  }
+
   return (
     <main className="dashboard-page">
       <Sidebar />
-      <section className="panel-content">
-        {children}
-      </section>
+      <section className="panel-content">{children}</section>
     </main>
   );
 }
