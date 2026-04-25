@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, addDoc, getDocs, query, where } from "firebase/firestore";
+import { deleteDoc,collection, addDoc, getDocs, doc, query, where } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { COLLECTIONS } from "@/lib/firestore_colections";
 import { useRouter } from "next/navigation";
+
 
 export default function ApuntesPage() {
   const [subjects, setSubjects] = useState<any[]>([]);
@@ -77,6 +78,55 @@ export default function ApuntesPage() {
       alert("Hubo un error al guardar la materia.");
     }
   };
+  const deleteSubject = async (subjectId: string, subjectName: string) => {
+  const confirmar = confirm(
+    `¿Seguro que quieres eliminar la materia "${subjectName}"?`
+  );
+  if (!confirmar) return;
+
+  try {
+    const filesQuery = query(
+      collection(db, COLLECTIONS.subjectFiles),
+      where("subjectId", "==", subjectId)
+    );
+    const filesSnap = await getDocs(filesQuery);
+
+    for (const fileDoc of filesSnap.docs) {
+      await deleteDoc(doc(db, COLLECTIONS.subjectFiles, fileDoc.id));
+    }
+
+    const chatsQuery = query(
+      collection(db, COLLECTIONS.subjectChats),
+      where("subjectId", "==", subjectId)
+    );
+    const chatsSnap = await getDocs(chatsQuery);
+
+    for (const chatDoc of chatsSnap.docs) {
+      const messagesQuery = query(
+        collection(db, COLLECTIONS.subjectChatMessages),
+        where("chatId", "==", chatDoc.id)
+      );
+      const messagesSnap = await getDocs(messagesQuery);
+
+      for (const msgDoc of messagesSnap.docs) {
+        await deleteDoc(doc(db, COLLECTIONS.subjectChatMessages, msgDoc.id));
+      }
+
+      await deleteDoc(doc(db, COLLECTIONS.subjectChats, chatDoc.id));
+    }
+
+    await deleteDoc(doc(db, COLLECTIONS.subjects, subjectId));
+
+    if (currentUser) {
+      fetchSubjects(currentUser.uid);
+    }
+
+    alert("Materia eliminada correctamente.");
+  } catch (error) {
+    console.error("Error eliminando materia:", error);
+    alert("No se pudo eliminar la materia.");
+  }
+};
 
   return (
     <>

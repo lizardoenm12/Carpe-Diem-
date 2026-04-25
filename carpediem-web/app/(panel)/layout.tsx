@@ -9,7 +9,11 @@ export default function PanelLayout({
   children,
 }: {
   children: React.ReactNode;
-}) {
+}) 
+
+{
+
+  
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const router = useRouter();
@@ -45,11 +49,12 @@ export default function PanelLayout({
   }
 
   if (!isAuthenticated) return null;
-
   return (
     <main className="dashboard-page">
       <Sidebar />
-      <section className="panel-content">{children}</section>
+      <section className="panel-content">
+        {children}
+      </section>
     </main>
   );
 }
