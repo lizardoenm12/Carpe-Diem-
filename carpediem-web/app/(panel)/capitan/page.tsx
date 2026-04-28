@@ -66,6 +66,7 @@ export default function Capitan() {
           message: pregunta,
           subjectName: null,
           userName: currentUser?.displayName || currentUser?.email || "estudiante",
+          uid: currentUser?.uid || null,
           history: mensajes.map((m) => ({
             role: m.rol === "usuario" ? "user" : "captain",
             text: m.texto,
@@ -214,21 +215,6 @@ const saveChatToSubject = async (subjectId: string, subjectName: string) => {
             </p>
           </div>
         </div>
-        <button
-          onClick={openSaveModal}
-          style={{
-            padding: "10px 14px",
-            borderRadius: "10px",
-            border: "none",
-            background: "#6AA5EC",
-            color: "white",
-            fontWeight: 600,
-            cursor: "pointer",
-            flexShrink: 0,
-          }}
-        >
-    Guardar en apuntes
-  </button>
       
       </div>
 
@@ -286,6 +272,7 @@ const saveChatToSubject = async (subjectId: string, subjectName: string) => {
                 {m.texto}
               </p>
             </div>
+            
           </div>
         ))}
 
@@ -320,40 +307,69 @@ const saveChatToSubject = async (subjectId: string, subjectName: string) => {
             </div>
           </div>
         )}
+        
       </div>
 
       <div className="capitan-inputbar">
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && enviar()}
-          placeholder="Escríbele al Capitán..."
-          style={{
-            flex: 1,
-            padding: "12px 16px",
-            borderRadius: "12px",
-            border: "0.5px solid #ddd",
-            fontSize: "14px",
-            outline: "none",
-          }}
-        />
-        <button
-          onClick={enviar}
-          disabled={!input.trim() || cargando}
-          style={{
-            padding: "12px 20px",
-            borderRadius: "12px",
-            background: input.trim() ? "#B2D8B2" : "#e0e0e0",
-            border: "none",
-            fontSize: "14px",
-            fontWeight: "500",
-            color: input.trim() ? "#27500A" : "#999",
-            cursor: input.trim() ? "pointer" : "not-allowed",
-          }}
-        >
-          Enviar
-        </button>
-      </div>
+  <input
+    value={input}
+    onChange={(e) => setInput(e.target.value)}
+    onKeyDown={(e) => e.key === "Enter" && enviar()}
+    placeholder="Escríbele al Capitán..."
+    style={{
+      flex: 1,
+      padding: "12px 16px",
+      borderRadius: "14px",
+      border: "1px solid #D6E2F1",
+      fontSize: "14px",
+      outline: "none",
+      background: "white",
+    }}
+  />
+
+  <button
+  onClick={openSaveModal}
+  title="Guardar en apuntes"
+  style={{
+    border: "none",
+    background: "transparent",
+    padding: 0,
+    cursor: "pointer",
+  }}
+>
+  <img
+    src="/icons/guardar.png"
+    alt="guardar"
+    style={{
+      width: "40px",
+      height: "40px",
+      borderRadius: "10px",
+    }}
+  />
+</button>
+
+  <button
+    onClick={enviar}
+    disabled={!input.trim() || cargando}
+    style={{
+      padding: "12px 18px",
+      borderRadius: "14px",
+      background: input.trim()
+        ? "linear-gradient(135deg, #6AA5EC, #7EB7F2)"
+        : "#E6ECF3",
+      color: input.trim() ? "white" : "#8A98AA",
+      border: "none",
+      fontSize: "14px",
+      fontWeight: 700,
+      cursor: input.trim() ? "pointer" : "not-allowed",
+      boxShadow: input.trim()
+        ? "0 10px 20px rgba(106, 165, 236, 0.22)"
+        : "none",
+    }}
+  >
+    Enviar
+  </button>
+</div>
       {showSaveModal && (
   <div
     style={{

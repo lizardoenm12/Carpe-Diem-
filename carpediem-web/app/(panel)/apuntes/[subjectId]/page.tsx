@@ -1,7 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { addDoc, collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  where,
+} from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { useParams, useRouter } from "next/navigation";
 import { auth, db, storage } from "@/lib/firebase";
@@ -41,17 +50,21 @@ export default function SubjectDetailPage() {
 
   const [subject, setSubject] = useState<Subject | null>(null);
   const [files, setFiles] = useState<SubjectFile[]>([]);
+  const [savedChats, setSavedChats] = useState<any[]>([]);
+
   const [loading, setLoading] = useState(true);
+  const [loadingChats, setLoadingChats] = useState(true);
   const [uploading, setUploading] = useState(false);
 
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: "captain",
-      text: "Hola. Soy el Capitán. Cuando esta materia tenga archivos procesados, podré ayudarte a estudiar este contenido.",
+      text: "Hola. Soy el Capitán. Este chat pertenece a esta materia. Puedes hacer preguntas y luego guardar la conversación aquí mismo.",
     },
   ]);
 
+  const [activeChatTitle, setActiveChatTitle] = useState<string | null>(null);
   const [quizGenerated, setQuizGenerated] = useState(false);
 
   const fetchSubject = async () => {
@@ -92,11 +105,36 @@ export default function SubjectDetailPage() {
     }
   };
 
+  const fetchSavedChats = async () => {
+    try {
+      const q = query(
+        collection(db, COLLECTIONS.subjectChats),
+        where("subjectId", "==", subjectId)
+      );
+
+      const snapshot = await getDocs(q);
+      const data = snapshot.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...docSnap.data(),
+      }));
+
+      setSavedChats(data);
+    } catch (error) {
+      console.error("Error cargando chats guardados:", error);
+    } finally {
+      setLoadingChats(false);
+    }
+  };
+
   useEffect(() => {
     const loadPage = async () => {
       setLoading(true);
+      setLoadingChats(true);
+
       await fetchSubject();
       await fetchFiles();
+      await fetchSavedChats();
+
       setLoading(false);
     };
 
@@ -109,7 +147,9 @@ export default function SubjectDetailPage() {
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const selectedFile = event.target.files?.[0];
 
     if (!selectedFile) return;
@@ -119,8 +159,8 @@ export default function SubjectDetailPage() {
       return;
     }
 
-    if (!subjectId) {
-      alert("No se encontró la materia.");
+    if (selectedFile.size > 5 * 1024 * 1024) {
+      alert("El archivo es muy grande. Máximo 5MB por ahora.");
       return;
     }
 
@@ -145,16 +185,13 @@ export default function SubjectDetailPage() {
       });
 
       await fetchFiles();
-
       alert("Archivo subido correctamente.");
     } catch (error) {
       console.error("Error subiendo archivo:", error);
       alert("Hubo un problema al subir el archivo.");
     } finally {
       setUploading(false);
-      if (event.target) {
-        event.target.value = "";
-      }
+      event.target.value = "";
     }
   };
 
@@ -170,12 +207,126 @@ export default function SubjectDetailPage() {
       role: "captain",
       text:
         files.length === 0
-          ? "Todavía no tengo archivos de esta materia para responder con contexto. Cuando se suban y procesen, podré ayudarte mejor."
-          : "La conexión real con Gemini se implementará después. Por ahora esta es la estructura visual del chat contextual de la materia.",
+          ? "Todavía no tengo archivos de esta materia para responder con contexto. Puedes seguir preguntando, pero cuando subas material podré ayudarte mejor."
+          : "Por ahora este chat está listo visualmente. Luego conectaremos Gemini para responder con el contexto real de los archivos.",
     };
 
     setMessages((prev) => [...prev, userMessage, captainMessage]);
     setQuestion("");
+  };
+
+  const saveCurrentChat = async () => {
+    if (!currentUser) {
+      alert("No hay sesión activa.");
+      return;
+    }
+
+    const hasUserMessage = messages.some((m) => m.role === "user");
+
+    if (!hasUserMessage) {
+      alert("Primero escribe algo en el chat antes de guardarlo.");
+      return;
+    }
+
+    try {
+      const firstUserMessage =
+        messages.find((m) => m.role === "user")?.text ||
+        `Chat de ${subject?.name || "materia"}`;
+
+      const title =
+        firstUserMessage.length > 50
+          ? firstUserMessage.slice(0, 50) + "..."
+          : firstUserMessage;
+
+      const chatRef = await addDoc(collection(db, COLLECTIONS.subjectChats), {
+        uid: currentUser.uid,
+        subjectId,
+        title,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      for (const message of messages) {
+        await addDoc(collection(db, COLLECTIONS.subjectChatMessages), {
+          chatId: chatRef.id,
+          uid: currentUser.uid,
+          subjectId,
+          role: message.role,
+          text: message.text,
+          createdAt: new Date(),
+        });
+      }
+
+      await fetchSavedChats();
+      alert("Conversación guardada en esta materia.");
+    } catch (error) {
+      console.error("Error guardando conversación:", error);
+      alert("No se pudo guardar la conversación.");
+    }
+  };
+
+  const openSavedChat = async (chat: any) => {
+    try {
+      const q = query(
+        collection(db, COLLECTIONS.subjectChatMessages),
+        where("chatId", "==", chat.id)
+      );
+
+      const snapshot = await getDocs(q);
+      const loadedMessages = snapshot.docs.map((docSnap) => {
+        const data = docSnap.data();
+
+        return {
+          role: data.role === "user" ? "user" : "captain",
+          text: data.text,
+          createdAt: data.createdAt,
+        };
+      }) as any[];
+
+      loadedMessages.sort((a, b) => {
+        const aTime = a.createdAt?.seconds || 0;
+        const bTime = b.createdAt?.seconds || 0;
+        return aTime - bTime;
+      });
+
+      setMessages(
+        loadedMessages.map((m) => ({
+          role: m.role,
+          text: m.text,
+        }))
+      );
+
+      setActiveChatTitle(chat.title || "Conversación guardada");
+    } catch (error) {
+      console.error("Error abriendo chat:", error);
+      alert("No se pudo abrir la conversación.");
+    }
+  };
+
+  const deleteChat = async (chatId: string) => {
+    const confirmar = confirm("¿Seguro que quieres eliminar esta conversación?");
+    if (!confirmar) return;
+
+    try {
+      const q = query(
+        collection(db, COLLECTIONS.subjectChatMessages),
+        where("chatId", "==", chatId)
+      );
+
+      const snapshot = await getDocs(q);
+
+      for (const msg of snapshot.docs) {
+        await deleteDoc(doc(db, COLLECTIONS.subjectChatMessages, msg.id));
+      }
+
+      await deleteDoc(doc(db, COLLECTIONS.subjectChats, chatId));
+
+      await fetchSavedChats();
+      alert("Conversación eliminada.");
+    } catch (error) {
+      console.error("Error eliminando conversación:", error);
+      alert("No se pudo eliminar la conversación.");
+    }
   };
 
   const handleGenerateQuiz = () => {
@@ -187,7 +338,7 @@ export default function SubjectDetailPage() {
   if (!subject) return <p>La materia no existe.</p>;
 
   return (
-    <div>
+    <div className="page-scroll">
       <button
         onClick={() => router.push("/apuntes")}
         style={{
@@ -219,7 +370,7 @@ export default function SubjectDetailPage() {
         }}
       >
         <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-          <div
+          <section
             style={{
               background: "white",
               borderRadius: "16px",
@@ -238,7 +389,9 @@ export default function SubjectDetailPage() {
               }}
             >
               <div>
-                <h2 style={{ fontSize: "18px", margin: "0 0 4px" }}>Archivos</h2>
+                <h2 style={{ fontSize: "18px", margin: "0 0 4px" }}>
+                  Archivos
+                </h2>
                 <p style={{ fontSize: "13px", color: "#888", margin: 0 }}>
                   Sube PDFs o imágenes para construir el contexto de estudio.
                 </p>
@@ -297,7 +450,9 @@ export default function SubjectDetailPage() {
                     }}
                   >
                     <div>
-                      <p style={{ margin: "0 0 4px", fontWeight: 600 }}>{file.fileName}</p>
+                      <p style={{ margin: "0 0 4px", fontWeight: 600 }}>
+                        {file.fileName}
+                      </p>
                       <p style={{ margin: 0, fontSize: "12px", color: "#888" }}>
                         {file.fileType || "Tipo desconocido"}
                       </p>
@@ -321,9 +476,9 @@ export default function SubjectDetailPage() {
                 ))}
               </div>
             )}
-          </div>
+          </section>
 
-          <div
+          <section
             style={{
               background: "white",
               borderRadius: "16px",
@@ -331,10 +486,42 @@ export default function SubjectDetailPage() {
               border: "0.5px solid #e0e0e0",
             }}
           >
-            <h2 style={{ fontSize: "18px", margin: "0 0 8px" }}>Preguntar al Capitán</h2>
-            <p style={{ fontSize: "13px", color: "#888", margin: "0 0 16px" }}>
-              Este espacio servirá para conversar con la IA usando el contexto de esta materia.
-            </p>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "flex-start",
+                gap: "12px",
+                marginBottom: "16px",
+              }}
+            >
+              <div>
+                <h2 style={{ fontSize: "18px", margin: "0 0 8px" }}>
+                  Chat de la materia
+                </h2>
+                <p style={{ fontSize: "13px", color: "#888", margin: 0 }}>
+                  {activeChatTitle
+                    ? `Conversación abierta: ${activeChatTitle}`
+                    : "Haz preguntas y guarda la conversación dentro de esta materia."}
+                </p>
+              </div>
+
+              <button
+                onClick={saveCurrentChat}
+                style={{
+                  padding: "9px 12px",
+                  borderRadius: "10px",
+                  border: "none",
+                  background: "#6AA5EC",
+                  color: "white",
+                  cursor: "pointer",
+                  fontWeight: 600,
+                  flexShrink: 0,
+                }}
+              >
+                Guardar chat
+              </button>
+            </div>
 
             <div
               style={{
@@ -358,7 +545,8 @@ export default function SubjectDetailPage() {
                     maxWidth: "80%",
                     background: msg.role === "user" ? "#B2D8B2" : "white",
                     color: msg.role === "user" ? "#27500A" : "#444",
-                    border: msg.role === "captain" ? "0.5px solid #e0e0e0" : "none",
+                    border:
+                      msg.role === "captain" ? "0.5px solid #e0e0e0" : "none",
                     borderRadius:
                       msg.role === "user"
                         ? "16px 16px 4px 16px"
@@ -399,11 +587,11 @@ export default function SubjectDetailPage() {
                 Enviar
               </button>
             </div>
-          </div>
+          </section>
         </div>
 
-        <div>
-          <div
+        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+          <section
             style={{
               background: "white",
               borderRadius: "16px",
@@ -411,9 +599,125 @@ export default function SubjectDetailPage() {
               border: "0.5px solid #e0e0e0",
             }}
           >
-            <h2 style={{ fontSize: "18px", margin: "0 0 8px" }}>Cuestionario</h2>
-            <p style={{ fontSize: "13px", color: "#888", margin: "0 0 16px", lineHeight: "1.6" }}>
-              Aquí se generará un cuestionario usando los archivos subidos o el contexto trabajado con el Capitán.
+            <h2 style={{ fontSize: "18px", margin: "0 0 8px" }}>
+              Conversaciones guardadas
+            </h2>
+            <p
+              style={{
+                fontSize: "13px",
+                color: "#888",
+                margin: "0 0 16px",
+              }}
+            >
+              Chats del Capitán vinculados a esta materia.
+            </p>
+
+            {loadingChats ? (
+              <p style={{ color: "#888", fontSize: "14px" }}>
+                Cargando conversaciones...
+              </p>
+            ) : savedChats.length === 0 ? (
+              <div
+                style={{
+                  background: "#F6F8FB",
+                  borderRadius: "12px",
+                  padding: "16px",
+                  color: "#888",
+                  fontSize: "14px",
+                }}
+              >
+                Todavía no hay conversaciones guardadas en esta materia.
+              </div>
+            ) : (
+              <div style={{ display: "grid", gap: "12px" }}>
+                {savedChats.map((chat) => (
+                  <div
+                    key={chat.id}
+                    style={{
+                      padding: "14px 16px",
+                      borderRadius: "12px",
+                      background: "#F7FAFE",
+                      border: "1px solid #E3EBF5",
+                    }}
+                  >
+                    <p
+                      style={{
+                        margin: "0 0 6px",
+                        fontWeight: 600,
+                        color: "#4C6FA8",
+                      }}
+                    >
+                      {chat.title || "Conversación sin título"}
+                    </p>
+
+                    <p
+                      style={{
+                        margin: "0 0 12px",
+                        fontSize: "12px",
+                        color: "#7B8CA8",
+                      }}
+                    >
+                      Chat guardado en esta materia
+                    </p>
+
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      <button
+                        onClick={() => openSavedChat(chat)}
+                        style={{
+                          padding: "8px 10px",
+                          borderRadius: "10px",
+                          border: "none",
+                          background: "#6AA5EC",
+                          color: "white",
+                          cursor: "pointer",
+                          fontWeight: 600,
+                        }}
+                      >
+                        Abrir
+                      </button>
+
+                      <button
+                        onClick={() => deleteChat(chat.id)}
+                        style={{
+                          padding: "8px 10px",
+                          borderRadius: "10px",
+                          border: "none",
+                          background: "#FDEAEA",
+                          color: "#B04B4B",
+                          cursor: "pointer",
+                          fontWeight: 600,
+                        }}
+                      >
+                        Eliminar
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section
+            style={{
+              background: "white",
+              borderRadius: "16px",
+              padding: "24px",
+              border: "0.5px solid #e0e0e0",
+            }}
+          >
+            <h2 style={{ fontSize: "18px", margin: "0 0 8px" }}>
+              Cuestionario
+            </h2>
+            <p
+              style={{
+                fontSize: "13px",
+                color: "#888",
+                margin: "0 0 16px",
+                lineHeight: "1.6",
+              }}
+            >
+              Aquí se generará un cuestionario usando archivos o el contexto del
+              chat.
             </p>
 
             <button
@@ -434,7 +738,7 @@ export default function SubjectDetailPage() {
             {!quizGenerated ? (
               <div
                 style={{
-                  minHeight: "180px",
+                  minHeight: "150px",
                   borderRadius: "12px",
                   background: "#FDFBEA",
                   padding: "14px",
@@ -446,12 +750,7 @@ export default function SubjectDetailPage() {
                 Todavía no se ha generado un cuestionario para esta materia.
               </div>
             ) : (
-              <div
-                style={{
-                  display: "grid",
-                  gap: "12px",
-                }}
-              >
+              <div style={{ display: "grid", gap: "12px" }}>
                 <div
                   style={{
                     background: "#FDFBEA",
@@ -461,31 +760,15 @@ export default function SubjectDetailPage() {
                   }}
                 >
                   <p style={{ fontWeight: 600, margin: "0 0 8px" }}>
-                    1. ¿Cuál es la idea principal del material cargado?
+                    1. ¿Cuál es la idea principal del material o conversación?
                   </p>
                   <p style={{ margin: 0, color: "#666", fontSize: "14px" }}>
-                    Cuestionario visual pendiente de conectar con IA.
-                  </p>
-                </div>
-
-                <div
-                  style={{
-                    background: "#FDFBEA",
-                    borderRadius: "12px",
-                    padding: "14px",
-                    border: "0.5px solid #ead37f",
-                  }}
-                >
-                  <p style={{ fontWeight: 600, margin: "0 0 8px" }}>
-                    2. ¿Qué concepto necesita más repaso?
-                  </p>
-                  <p style={{ margin: 0, color: "#666", fontSize: "14px" }}>
-                    Esta sección se llenará después con contenido real generado por Gemini.
+                    Cuestionario visual pendiente de conectar con Gemini.
                   </p>
                 </div>
               </div>
             )}
-          </div>
+          </section>
         </div>
       </div>
     </div>

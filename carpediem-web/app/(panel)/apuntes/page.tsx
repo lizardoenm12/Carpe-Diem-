@@ -1,11 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { deleteDoc,collection, addDoc, getDocs, doc, query, where } from "firebase/firestore";
+import {
+  collection,
+  addDoc,
+  getDocs,
+  query,
+  where,
+  deleteDoc,
+  doc,
+} from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { COLLECTIONS } from "@/lib/firestore_colections";
 import { useRouter } from "next/navigation";
-
 
 export default function ApuntesPage() {
   const [subjects, setSubjects] = useState<any[]>([]);
@@ -31,9 +38,9 @@ export default function ApuntesPage() {
       );
 
       const snapshot = await getDocs(q);
-      const data = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
+      const data = snapshot.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...docSnap.data(),
       }));
 
       setSubjects(data);
@@ -78,10 +85,12 @@ export default function ApuntesPage() {
       alert("Hubo un error al guardar la materia.");
     }
   };
+
   const deleteSubject = async (subjectId: string, subjectName: string) => {
   const confirmar = confirm(
-    `¿Seguro que quieres eliminar la materia "${subjectName}"?`
+    `¿Seguro que quieres eliminar "${subjectName}"? Se borrarán también sus archivos registrados, chats y mensajes.`
   );
+
   if (!confirmar) return;
 
   try {
@@ -121,15 +130,16 @@ export default function ApuntesPage() {
       fetchSubjects(currentUser.uid);
     }
 
-    alert("Materia eliminada correctamente.");
+    alert("Materia eliminada con todo su contenido.");
   } catch (error) {
-    console.error("Error eliminando materia:", error);
-    alert("No se pudo eliminar la materia.");
+    console.error("Error eliminando materia completa:", error);
+    alert("No se pudo eliminar la materia completa.");
   }
+  
 };
 
   return (
-    <>
+    <div className="page-scroll">
       <div
         style={{
           display: "flex",
@@ -141,12 +151,28 @@ export default function ApuntesPage() {
         }}
       >
         <div>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "6px" }}>
-            <span style={{ fontSize: "28px" }}>📚</span>
-            <h1 style={{ fontSize: "34px", margin: 0, color: "#4C6FA8" }}>Apuntes</h1>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              marginBottom: "6px",
+            }}
+          >
+            <span style={{ fontSize: "34px" }}>📚</span>
+            <h1
+              style={{
+                fontSize: "38px",
+                margin: 0,
+                color: "#4C6FA8",
+                fontWeight: 800,
+              }}
+            >
+              Apuntes
+            </h1>
           </div>
 
-          <p style={{ margin: 0, fontSize: "14px", color: "#7B8CA8" }}>
+          <p style={{ margin: 0, fontSize: "15px", color: "#6E86B3" }}>
             Organiza tus materias y centraliza tus archivos de estudio.
           </p>
         </div>
@@ -155,26 +181,28 @@ export default function ApuntesPage() {
           onClick={() => setShowModal(true)}
           style={{
             padding: "12px 18px",
-            borderRadius: "12px",
-            background: "#6AA5EC",
+            borderRadius: "14px",
+            background: "linear-gradient(135deg, #6AA5EC, #7EB7F2)",
             color: "white",
             border: "none",
             cursor: "pointer",
-            fontWeight: 600,
-            boxShadow: "0 8px 18px rgba(106, 165, 236, 0.18)",
+            fontWeight: 700,
+            boxShadow: "0 12px 24px rgba(106, 165, 236, 0.24)",
           }}
         >
           + Agregar materia
         </button>
       </div>
 
-      <div
+      <section
         style={{
-          background: "white",
-          borderRadius: "18px",
-          padding: "22px",
-          border: "1px solid #E3EBF5",
-          minHeight: "420px",
+          background:
+            "linear-gradient(135deg, rgba(255,255,255,0.82), rgba(244,248,252,0.95))",
+          borderRadius: "24px",
+          padding: "28px",
+          border: "1px solid #DCE8F6",
+          minHeight: "460px",
+          boxShadow: "0 18px 40px rgba(76, 111, 168, 0.08)",
         }}
       >
         {loading ? (
@@ -182,7 +210,7 @@ export default function ApuntesPage() {
         ) : subjects.length === 0 ? (
           <div
             style={{
-              minHeight: "320px",
+              minHeight: "340px",
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
@@ -191,60 +219,126 @@ export default function ApuntesPage() {
               color: "#7B8CA8",
             }}
           >
-            <div style={{ fontSize: "42px", marginBottom: "10px" }}>🗂️</div>
-            <p style={{ fontSize: "16px", margin: "0 0 6px" }}>Aún no tienes materias creadas.</p>
+            <div style={{ fontSize: "46px", marginBottom: "12px" }}>🗂️</div>
+            <p style={{ fontSize: "17px", margin: "0 0 6px" }}>
+              Aún no tienes materias creadas.
+            </p>
             <p style={{ fontSize: "14px", margin: 0 }}>
-              Agrega una materia para comenzar a subir archivos y estudiar con contexto.
+              Agrega una materia para comenzar a organizar tus apuntes.
             </p>
           </div>
         ) : (
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-              gap: "16px",
+              gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+              gap: "20px",
             }}
           >
             {subjects.map((s) => (
               <div
                 key={s.id}
-                onClick={() => router.push(`/apuntes/${s.id}`)}
                 style={{
-                  background: "#F7FAFE",
-                  border: "1px solid #E3EBF5",
-                  borderRadius: "16px",
-                  padding: "18px",
-                  cursor: "pointer",
+                  position: "relative",
+                  background:
+                    "linear-gradient(135deg, rgba(255,255,255,0.96), rgba(242,247,253,0.96))",
+                  border: "1px solid #DCE8F6",
+                  borderRadius: "22px",
+                  padding: "22px",
+                  minHeight: "190px",
+                  boxShadow: "0 14px 28px rgba(76, 111, 168, 0.08)",
+                  overflow: "hidden",
                 }}
               >
-                <div style={{ fontSize: "22px", marginBottom: "10px" }}>📘</div>
-
-                <p
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteSubject(s.id, s.name);
+                  }}
+                  title="Eliminar materia"
                   style={{
-                    margin: "0 0 8px",
-                    fontSize: "18px",
-                    fontWeight: 600,
-                    color: "#4C6FA8",
+                    position: "absolute",
+                    top: "14px",
+                    right: "14px",
+                    width: "30px",
+                    height: "30px",
+                    borderRadius: "50%",
+                    border: "1px solid #F1C7C7",
+                    background: "#FFF5F5",
+                    color: "#B04B4B",
+                    cursor: "pointer",
+                    fontWeight: 700,
                   }}
                 >
-                  {s.name}
-                </p>
+                  ×
+                </button>
 
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: "13px",
-                    color: "#7B8CA8",
-                    lineHeight: "1.5",
-                  }}
+                <div
+                  onClick={() => router.push(`/apuntes/${s.id}`)}
+                  style={{ cursor: "pointer" }}
                 >
-                  Entrar a materia, subir archivos y trabajar con el Capitán.
-                </p>
+                  <div
+                    style={{
+                      width: "48px",
+                      height: "48px",
+                      borderRadius: "15px",
+                      background: "#E8F4FF",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "25px",
+                      marginBottom: "18px",
+                    }}
+                  >
+                    📘
+                  </div>
+
+                  <h3
+                    style={{
+                      margin: "0 0 10px",
+                      fontSize: "22px",
+                      color: "#3F66A3",
+                      fontWeight: 800,
+                    }}
+                  >
+                    {s.name}
+                  </h3>
+
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: "14px",
+                      color: "#6E86B3",
+                      lineHeight: "1.6",
+                      maxWidth: "90%",
+                    }}
+                  >
+                    Archivos, conversaciones del Capitán y cuestionarios de esta
+                    materia.
+                  </p>
+
+                  <div
+                    style={{
+                      marginTop: "18px",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      padding: "7px 11px",
+                      borderRadius: "999px",
+                      background: "#EEF5FB",
+                      color: "#4C6FA8",
+                      fontSize: "12px",
+                      fontWeight: 700,
+                    }}
+                  >
+                    Entrar →
+                  </div>
+                </div>
               </div>
             ))}
           </div>
         )}
-      </div>
+      </section>
 
       {showModal && (
         <div
@@ -263,16 +357,26 @@ export default function ApuntesPage() {
             style={{
               background: "white",
               padding: "24px",
-              borderRadius: "16px",
+              borderRadius: "18px",
               width: "100%",
-              maxWidth: "380px",
+              maxWidth: "400px",
               border: "1px solid #E3EBF5",
               boxShadow: "0 20px 40px rgba(0,0,0,0.08)",
             }}
           >
-            <h3 style={{ margin: "0 0 8px", color: "#4C6FA8" }}>Crear materia</h3>
-            <p style={{ margin: "0 0 16px", fontSize: "14px", color: "#7B8CA8" }}>
-              Agrega el nombre de una materia para organizar tus archivos.
+            <h3 style={{ margin: "0 0 8px", color: "#4C6FA8" }}>
+              Crear materia
+            </h3>
+
+            <p
+              style={{
+                margin: "0 0 16px",
+                fontSize: "14px",
+                color: "#7B8CA8",
+              }}
+            >
+              Agrega el nombre de una materia para organizar tus archivos,
+              conversaciones y cuestionarios.
             </p>
 
             <input
@@ -290,7 +394,13 @@ export default function ApuntesPage() {
               }}
             />
 
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: "10px",
+              }}
+            >
               <button
                 onClick={() => setShowModal(false)}
                 style={{
@@ -313,7 +423,7 @@ export default function ApuntesPage() {
                   border: "none",
                   background: "#6AA5EC",
                   color: "white",
-                  fontWeight: 600,
+                  fontWeight: 700,
                   cursor: "pointer",
                 }}
               >
@@ -323,6 +433,6 @@ export default function ApuntesPage() {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }

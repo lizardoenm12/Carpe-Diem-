@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { collection, addDoc, getDocs, query, where, orderBy, updateDoc, doc } from "firebase/firestore";
+import { collection, addDoc, getDocs, query, where, orderBy, deleteDoc, doc } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 
 type Evento = {
@@ -85,14 +85,13 @@ export default function Calendario() {
     }
   };
 
-  const toggleCompletado = async (evento: Evento) => {
+  const eliminarEvento = async (evento: Evento) => {
     try {
-      await updateDoc(doc(db, "eventos", evento.id), {
-        completado: !evento.completado,
-      });
-      setEventos(prev => prev.map(e => e.id === evento.id ? {...e, completado: !e.completado} : e));
+      await deleteDoc(doc(db, "eventos", evento.id));
+      setEventos((prev) => prev.filter((e) => e.id !== evento.id));
     } catch (error) {
-      console.error(error);
+      console.error("Error eliminando evento:", error);
+      alert("No se pudo eliminar el evento.");
     }
   };
 
@@ -132,15 +131,16 @@ export default function Calendario() {
     const c = colores[evento.tipo];
     const dias = getDias(evento.fecha);
     return (
+      
       <div style={{display:"flex",alignItems:"flex-start",gap:"10px",padding:"8px 0",borderBottom:"0.5px solid #f5f5f5"}}>
         <div
-          onClick={() => toggleCompletado(evento)}
+          onClick={() => eliminarEvento(evento)}
           style={{width:"16px",height:"16px",borderRadius:"4px",border:`1.5px solid ${evento.completado ? c.punto : "#ddd"}`,background:evento.completado ? c.punto : "white",cursor:"pointer",flexShrink:0,marginTop:"2px",display:"flex",alignItems:"center",justifyContent:"center"}}
         >
           {evento.completado && <span style={{color:"white",fontSize:"10px",fontWeight:"700"}}>✓</span>}
         </div>
         <div style={{flex:1}}>
-          <p style={{fontSize:"12px",fontWeight:"500",color:evento.completado?"#bbb":"#444",margin:"0 0 2px",textDecoration:evento.completado?"line-through":"none"}}>{evento.titulo}</p>
+          <p style={{fontSize:"12px",fontWeight:"500",color:"#444",textDecoration:"none",margin:"0 0 2px",}}>{evento.titulo}</p>
           <p style={{fontSize:"10px",color:"#bbb",margin:"0"}}>{dias === 0 ? "Hoy" : dias === 1 ? "Mañana" : `En ${dias} días`} · {c.label}</p>
         </div>
       </div>
@@ -148,8 +148,9 @@ export default function Calendario() {
   };
 
   return (
-    <main style={{display:"flex",minHeight:"100vh",background:"#F5F5DC"}}>
     
+    <main style={{display:"flex",minHeight:"100vh",background:"#F5F5DC"}}>
+    <div className="page-scroll">
 
       <section style={{flex:1,padding:"32px",display:"flex",gap:"24px",alignItems:"flex-start"}}>
 
@@ -307,6 +308,7 @@ export default function Calendario() {
         </div>
 
       </section>
+      </div>
     </main>
   );
 }
