@@ -11,7 +11,6 @@ const items = [
   { icon: "📚", ruta: "/apuntes", label: "Apuntes" },
   { icon: "⏳", ruta: "/capitan", label: "El Capitán" },
   { icon: "🎮", ruta: "/juegos", label: "Juegos" },
-  { icon: "🔥", ruta: "/racha", label: "Racha" },
 ];
 
 export default function Sidebar() {
