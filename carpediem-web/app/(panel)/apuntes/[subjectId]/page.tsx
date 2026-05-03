@@ -539,7 +539,7 @@ const openSavedChat = async (chat: any) => {
           <section style={{ background:"rgba(255,255,255,0.85)", borderRadius:"16px", padding:"24px", border:`0.5px solid ${borderCard}`, backdropFilter:"blur(8px)" }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"12px", gap:"10px" }}>
               <div>
-                <h2 style={{ fontSize:"17px", margin:"0 0 4px", color:colorTexto, fontWeight:700 }}>⏳ Oh Capitán, Mi Capitán</h2>
+                <h2 style={{ fontSize:"17px", margin:"0 0 4px", color:colorTexto, fontWeight:700 }}>⏳ ¡Oh Capitán, Mi Capitán!</h2>
                 <p style={{ fontSize:"12px", color:colorSecund, margin:0 }}>
                   {activeChatTitle ? `Conversación: ${activeChatTitle}` : "Pregunta sobre esta materia"}
                 </p>
@@ -606,7 +606,7 @@ const openSavedChat = async (chat: any) => {
                 value={question}
                 onChange={e => setQuestion(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && handleSendQuestion()}
-                placeholder="Haz una pregunta sobre esta materia..."
+                placeholder="¡Oh Capitán, mi Capitán!..."
                 style={{ flex:1, padding:"10px 12px", borderRadius:"10px", border:"0.5px solid #c8d8b8", fontSize:"13px", outline:"none", color:colorTexto }}
               />
               <button

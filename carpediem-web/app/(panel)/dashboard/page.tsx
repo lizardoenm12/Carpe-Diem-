@@ -7,6 +7,8 @@ import {
 } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { getBgColor, getBorderCard, getTextoPrincipal, getTextoSecundario } from "@/lib/semaforo";
+import { getPoemaEstable, NivelEmocional } from "@/lib/poemas";
+import { COLLECTIONS } from "@/lib/firestore_colections";
 
 // --- TIPOS Y CONSTANTES ---
 const TIPOS_COLOR: Record<string, { color: string; texto: string; emoji: string }> = {
@@ -27,12 +29,26 @@ const emociones = [
   { label: "Burnout",   emoji: "🌑", color: "#C45C5C", fondo: "#FAF0F0", nivel: 1, descripcion: "Estoy agotado, necesito descansar" },
 ];
 
+// ── toDate: maneja strings "YYYY-MM-DD", Timestamps y Dates ──
 const toDate = (fecha: any): Date => {
   if (!fecha) return new Date(0);
   if (fecha instanceof Date) return fecha;
   if (typeof fecha.toDate === "function") return fecha.toDate();
   if (fecha.seconds !== undefined) return new Date(fecha.seconds * 1000);
+  if (typeof fecha === "string" && /^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+    const [y, m, d] = fecha.split("-").map(Number);
+    return new Date(y, m - 1, d); // hora local, no UTC
+  }
   return new Date(fecha);
+};
+
+// ── FIX: valida que el año del evento sea razonable (2020–2099) ──
+// Esto descarta fechas corruptas como "20226-04-13" (typo al crear)
+const esFechaValida = (fecha: any): boolean => {
+  const d = toDate(fecha);
+  if (isNaN(d.getTime())) return false;
+  const anio = d.getFullYear();
+  return anio >= 2020 && anio <= 2099;
 };
 
 const horaAMin = (h: string) => {
@@ -60,13 +76,14 @@ export default function Dashboard() {
   const [actividadesHoy, setActividadesHoy]           = useState<Actividad[]>([]);
   const [proximosEventos, setProximosEventos]         = useState<Evento[]>([]);
   const [diaResaltado, setDiaResaltado]               = useState("");
-  
-  // --- NUEVOS ESTADOS DE INTELIGENCIA ADAPTATIVA ---
   const [mensajeCapitanIA, setMensajeCapitanIA]       = useState("");
   const [metodoEstudio, setMetodoEstudio]             = useState("Pomodoro");
+  const [totalMaterias, setTotalMaterias]             = useState<number | null>(null);
+  const [ultimaMateria, setUltimaMateria]             = useState<string | null>(null);
 
   const router = useRouter();
   const diaActualNombre = DIAS_ES[new Date().getDay()];
+  const seedHoy = new Date().toDateString();
 
   useEffect(() => {
     const unsub = auth.onAuthStateChanged(async (user) => {
@@ -85,15 +102,13 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!mostrarContenido || !currentUser) return;
-    
+
     const cargarInteligenciaCapitan = async () => {
       try {
-        // 1. Obtener método de estudio preferido
         const userDoc = await getDoc(doc(db, "users", currentUser.uid));
         const metodo = userDoc.exists() ? userDoc.data().metodo : "Pomodoro";
         setMetodoEstudio(metodo);
 
-        // 2. Analizar historial de 14 días para detectar patrones
         const hace14Dias = new Date();
         hace14Dias.setDate(hace14Dias.getDate() - 14);
 
@@ -103,12 +118,11 @@ export default function Dashboard() {
           where("fecha", ">=", hace14Dias),
           orderBy("fecha", "desc")
         );
-        
+
         const snapPatron = await getDocs(qPatron);
         const registros = snapPatron.docs.map(d => d.data());
         const n = nombreUsuario ? nombreUsuario.split(" ")[0] : "Jess";
-        
-        // 3. Generar mensaje proactivo del Capitán basado en datos
+
         if (registros.length > 0) {
           const diaSemanaHoy = new Date().getDay();
           const historicoMismoDia = registros.filter(r => toDate(r.fecha).getDay() === diaSemanaHoy);
@@ -138,18 +152,49 @@ export default function Dashboard() {
           setHorarioCompleto(h);
           setActividadesHoy((h[diaActualNombre] ?? []).sort((a, b) => a.horaInicio.localeCompare(b.horaInicio)));
         }
+
+        // ── FIX CALENDARIO ──
+        // Trae todos los eventos del usuario y filtra en cliente porque:
+        // 1. Algunos eventos tienen completado: undefined (no false)
+        // 2. Algunos tienen fechas corruptas como "20226-04-13" (typo al crearlos)
+        // 3. No depende de índices compuestos de Firestore
         const snapE = await getDocs(query(
           collection(db, "eventos"),
           where("uid", "==", currentUser.uid),
-          where("completado", "==", false),
-          limit(20)
+          limit(100) // subimos a 100 por si hay muchos eventos históricos
         ));
+
+        const hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
+
         const eventos = snapE.docs
           .map(d => ({ id: d.id, ...d.data() } as Evento))
-          .filter(e => toDate(e.fecha) >= new Date())
+          // FIX 1: excluir completados — también cubre completado: undefined (falsy)
+          // Solo mostramos los que explícitamente NO están completados
+          .filter(e => e.completado !== true)
+          // FIX 2: descartar fechas corruptas (años fuera de rango 2020-2099)
+          .filter(e => esFechaValida(e.fecha))
+          // FIX 3: solo eventos de hoy en adelante
+          .filter(e => toDate(e.fecha) >= hoy)
           .sort((a, b) => toDate(a.fecha).getTime() - toDate(b.fecha).getTime())
           .slice(0, 4);
+
         setProximosEventos(eventos);
+
+        // Cargar materias para la card de apuntes
+        const snapM = await getDocs(query(
+          collection(db, COLLECTIONS.subjects),
+          where("uid", "==", currentUser.uid)
+        ));
+        const materias = snapM.docs.map(d => ({ id: d.id, ...d.data() } as any));
+        setTotalMaterias(materias.length);
+        if (materias.length > 0) {
+          const ultima = [...materias].sort((a, b) =>
+            (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0)
+          )[0];
+          setUltimaMateria(ultima.name ?? null);
+        }
+
       } catch(e) { console.error(e); }
     };
 
@@ -165,7 +210,6 @@ export default function Dashboard() {
       await setDoc(doc(db, "checkins", `${currentUser.uid}_${new Date().toDateString()}`), {
         uid: currentUser.uid, emocion: emocion.label, nivel: emocion.nivel, fecha: new Date()
       });
-      // Sincronizamos con el perfil de usuario para acceso global
       await setDoc(doc(db, "users", currentUser.uid), { nivelActual: emocion.nivel }, { merge: true });
     }
     setTimeout(() => setMostrarContenido(true), 400);
@@ -197,8 +241,9 @@ export default function Dashboard() {
 
   const bgPage      = getBgColor(nivelEmocion);
   const borderCard  = getBorderCard(nivelEmocion);
-  const colorTitulo = getTextoPrincipal(nivelEmocion);   // ← NUEVO
-  const colorSub    = getTextoSecundario(nivelEmocion);  // ← NUEVO
+  const colorTitulo = getTextoPrincipal(nivelEmocion);
+  const colorSub    = getTextoSecundario(nivelEmocion);
+  const poema       = getPoemaEstable(nivelEmocion as NivelEmocional, seedHoy);
 
   if (!mostrarContenido) {
     return (
@@ -231,34 +276,39 @@ export default function Dashboard() {
       <div className="page-scroll">
         <section style={{ flex:1, padding:"32px" }}>
 
-          {/* ── CAMBIO 1: color del h1 ahora viene del semáforo ── */}
           <h1 style={{ fontSize:"24px", fontWeight:800, margin:"0 0 4px", color: colorTitulo }}>
             {nombreUsuario ? `Hola, ${nombreUsuario.split(" ")[0]} 👋` : "Tu Espacio de Calma"}
           </h1>
-          {/* ── CAMBIO 2: color del subtítulo ahora viene del semáforo ── */}
-          <p style={{ fontSize:"14px", color: colorSub, margin:"0 0 28px" }}>Un día a la vez, un paso a la vez</p>
+          <p style={{ fontSize:"14px", color: colorSub, margin:"0 0 16px" }}>Un día a la vez, un paso a la vez</p>
+
+          <div style={{ borderLeft: `3px solid ${borderCard}`, paddingLeft: "16px", marginBottom: "28px" }}>
+            <p style={{ fontStyle: "italic", fontSize: "14px", color: colorSub, margin: "0 0 4px", lineHeight: 1.7, whiteSpace: "pre-line" }}>
+              "{poema.texto}"
+            </p>
+            <p style={{ fontSize: "11px", color: colorSub, margin: 0, opacity: 0.7 }}>
+              — {poema.autor}, <span style={{ fontStyle: "italic" }}>{poema.obra}</span>
+            </p>
+          </div>
 
           {/* ── CARDS MÓDULOS ── */}
           <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:"16px", marginBottom:"24px" }}>
 
-            {/* CAPITÁN CON INTELIGENCIA ADAPTATIVA */}
-            <div onClick={() => router.push("/capitan")} style={{ 
-              background:"white", 
-              borderRadius:"16px", 
-              padding:"20px", 
-              border:`1.5px solid ${borderCard}`,
-              cursor:"pointer",
+            {/* El Capitán */}
+            <div onClick={() => router.push("/capitan")} style={{
+              background:"white", borderRadius:"16px", padding:"20px",
+              border:`1.5px solid ${borderCard}`, cursor:"pointer",
               boxShadow: "0 4px 12px rgba(0,0,0,0.02)"
             }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"10px" }}>
                 <p style={{ fontSize:"13px", color:"#aaa", margin:0 }}>⏳ El Capitán</p>
-                <span style={{ fontSize: "10px", background: "#f0f7f0", color: "#95bd79", padding: "2px 8px", borderRadius: "10px", fontWeight: 600 }}>Modo Adaptativo</span>
+                <span style={{ fontSize:"10px", background:"#f0f7f0", color:"#95bd79", padding:"2px 8px", borderRadius:"10px", fontWeight:600 }}>Modo Adaptativo</span>
               </div>
               <p style={{ fontSize:"14px", color:"#444", margin:0, lineHeight:1.7 }}>
                 {mensajeCapitanIA || "¡Oh Capitán, mi Capitán! Estoy analizando tu semana para guiarte mejor hoy..."}
               </p>
             </div>
 
+            {/* Calendario */}
             <div onClick={() => router.push("/calendario")} style={{ background:"white", borderRadius:"16px", padding:"20px", border:`0.5px solid #eee`, cursor:"pointer" }}>
               <p style={{ fontSize:"13px", color:"#aaa", margin:"0 0 10px" }}>📅 Próximos eventos</p>
               {proximosEventos.length === 0 ? (
@@ -276,12 +326,31 @@ export default function Dashboard() {
               )}
             </div>
 
+            {/* Apuntes */}
             <div onClick={() => router.push("/apuntes")} style={{ background:"white", borderRadius:"16px", padding:"20px", border:`0.5px solid #eee`, cursor:"pointer" }}>
               <p style={{ fontSize:"13px", color:"#aaa", margin:"0 0 10px" }}>📚 Apuntes</p>
-              <p style={{ fontSize:"14px", color:"#444", margin:"0 0 4px", fontWeight:500 }}>Tus notas organizadas</p>
-              <p style={{ fontSize:"13px", color:"#888", margin:0 }}>Sube y organiza tu material</p>
+              {totalMaterias === null ? (
+                <p style={{ fontSize:"13px", color:"#ccc", margin:0 }}>Cargando...</p>
+              ) : totalMaterias === 0 ? (
+                <>
+                  <p style={{ fontSize:"14px", color:"#444", margin:"0 0 4px", fontWeight:500 }}>Sin materias aún</p>
+                  <p style={{ fontSize:"13px", color:"#888", margin:0 }}>Crea tu primera materia</p>
+                </>
+              ) : (
+                <>
+                  <p style={{ fontSize:"14px", color:"#444", margin:"0 0 4px", fontWeight:500 }}>
+                    {totalMaterias} {totalMaterias === 1 ? "materia" : "materias"} activas
+                  </p>
+                  {ultimaMateria && (
+                    <p style={{ fontSize:"13px", color:"#888", margin:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                      Última: {ultimaMateria}
+                    </p>
+                  )}
+                </>
+              )}
             </div>
 
+            {/* Juegos */}
             <div onClick={() => router.push("/juegos")} style={{ background:"white", borderRadius:"16px", padding:"20px", border:`0.5px solid #eee`, cursor:"pointer" }}>
               <p style={{ fontSize:"13px", color:"#aaa", margin:"0 0 10px" }}>🎮 Juegos</p>
               <p style={{ fontSize:"14px", color:"#444", margin:"0 0 4px", fontWeight:500 }}>Repasa sin estrés</p>
@@ -290,16 +359,11 @@ export default function Dashboard() {
 
           </div>
 
-          {/* ── GRID SEMANAL (Tu diseño original intacto) ── */}
+          {/* ── GRID SEMANAL ── */}
           <div style={{
-            background: "white",
-            borderRadius: "16px",
-            border: `0.5px solid ${borderCard}`,
-            marginBottom: "24px",
-            overflow: "hidden",
-            maxHeight: "440px",
-            display: "flex",
-            flexDirection: "column",
+            background: "white", borderRadius: "16px", border: `0.5px solid ${borderCard}`,
+            marginBottom: "24px", overflow: "hidden", maxHeight: "440px",
+            display: "flex", flexDirection: "column",
           }}>
             <div style={{ padding:"16px 24px", borderBottom:`0.5px solid ${borderCard}`, display:"flex", justifyContent:"space-between", alignItems:"center", flexShrink:0 }}>
               <div>
@@ -402,7 +466,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* ── HOY (Tu diseño original intacto) ── */}
+          {/* ── HOY ── */}
           <div style={{ background:"white", borderRadius:"16px", border:`0.5px solid ${borderCard}`, overflow:"hidden", marginBottom:"32px" }}>
             <div style={{ padding:"16px 24px", borderBottom:`0.5px solid ${borderCard}`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
               <div>
@@ -432,7 +496,7 @@ export default function Dashboard() {
               ) : (
                 <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
                   {actividadesHoy.map(act => {
-                    const ini       = horaAMin(act.horaInicio);
+                    const ini      = horaAMin(act.horaInicio);
                     const isPasada = ini < horaActual;
                     const isActual = act.id === actividadActual?.id;
                     const tc       = TIPOS_COLOR[act.tipo] ?? { color:"#E8EDE8", texto:"#555", emoji:"📌" };

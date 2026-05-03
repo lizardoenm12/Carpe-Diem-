@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { signOut } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
 
 const items = [
   { icon: "🏠", ruta: "/dashboard", label: "Inicio" },
@@ -14,15 +15,37 @@ const items = [
 ];
 
 export default function Sidebar() {
-  const router = useRouter();
+  const router   = useRouter();
   const pathname = usePathname();
 
   const [currentUser, setCurrentUser] = useState(auth.currentUser);
-  const [showMenu, setShowMenu] = useState(false);
+  const [showMenu, setShowMenu]       = useState(false);
+  const [photoURL, setPhotoURL]       = useState<string | null>(null); // ← NUEVO
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
       setCurrentUser(user);
+
+      if (user) {
+        // ── NUEVO: primero intentamos Firestore (foto personalizada) ──
+        // Si el usuario subió una foto desde perfil, está en userProfiles/{uid}
+        // Si no, usamos la foto de Auth (Google, etc.)
+        try {
+          const snap = await getDoc(doc(db, "userProfiles", user.uid));
+          if (snap.exists() && snap.data().photoURL) {
+            setPhotoURL(snap.data().photoURL);
+          } else if (user.photoURL) {
+            setPhotoURL(user.photoURL);
+          } else {
+            setPhotoURL(null);
+          }
+        } catch {
+          // Si falla Firestore, fallback a Auth
+          setPhotoURL(user.photoURL || null);
+        }
+      } else {
+        setPhotoURL(null);
+      }
     });
 
     return () => unsubscribe();
@@ -42,8 +65,7 @@ export default function Sidebar() {
     currentUser?.email?.split("@")[0] ||
     "Usuario";
 
-  const userEmail = currentUser?.email || "Sin correo";
-
+  const userEmail   = currentUser?.email || "Sin correo";
   const userInitial = userName.charAt(0).toUpperCase();
 
   return (
@@ -57,7 +79,6 @@ export default function Sidebar() {
         <nav className="sidebar-nav">
           {items.map((item) => {
             const active = pathname === item.ruta;
-
             return (
               <button
                 key={item.ruta}
@@ -79,7 +100,17 @@ export default function Sidebar() {
           className="sidebar-user-chip"
           onClick={() => setShowMenu((prev) => !prev)}
         >
-          <span className="sidebar-user-avatar">{userInitial}</span>
+          {/* ── CAMBIO: foto si existe, inicial si no ── */}
+          {photoURL ? (
+            <img
+              src={photoURL}
+              alt="Foto de perfil"
+              className="sidebar-user-avatar"
+              style={{ objectFit: "cover", borderRadius: "50%" }}
+            />
+          ) : (
+            <span className="sidebar-user-avatar">{userInitial}</span>
+          )}
 
           <div className="sidebar-user-meta">
             <p className="sidebar-user-name">{userName}</p>
@@ -91,9 +122,9 @@ export default function Sidebar() {
           <div className="sidebar-user-menu">
             <button
               className="sidebar-user-menu-btn"
-              onClick={() => router.push("/configuracion")}
+              onClick={() => router.push("/perfil")}
             >
-              Configuración
+              Perfil
             </button>
 
             <button

@@ -511,10 +511,12 @@ input {
 .sidebar-user-menu-btn.logout:hover {
   background: #fdeaea;
 }
+
 .dashboard-page {
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
-  background: #f4f8fc;
+  background: transparent;
+  overflow: hidden;
 }
 
 
@@ -579,7 +581,7 @@ input {
 .dashboard-page {
   height: 100vh;
   display: flex;
-  background: #f4f8fc;
+  background: transparent;  /* ← esto es todo */
   overflow: hidden;
 }
 
