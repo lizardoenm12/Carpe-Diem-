@@ -13,3 +13,8 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+.gradle/
+app/build/
+.idea/
+app/google-services.json

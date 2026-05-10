@@ -481,13 +481,18 @@ input {
   border: 1px solid #e3ebf5;
   border-radius: 12px;
   padding: 8px;
-  display: flex;
+  display: none;
   flex-direction: column;
   gap: 6px;
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
 }
 
+.sidebar-hover:hover .sidebar-user-menu {
+  display: flex;
+}
+
 .sidebar-user-menu-btn {
+  width: 100%;
   border: none;
   background: #f7fafe;
   color: #4c6fa8;
@@ -497,6 +502,7 @@ input {
   text-align: left;
   font-size: 13px;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .sidebar-user-menu-btn:hover {
