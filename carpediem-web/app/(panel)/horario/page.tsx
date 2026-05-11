@@ -1,7 +1,6 @@
 "use client";
  
-import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useCallback } from "react";import { useRouter } from "next/navigation";
 import { doc, setDoc, getDoc, collection, query, where, orderBy, limit, getDocs } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { getBgColor, getBorderCard, getTextoPrincipal, getTextoSecundario } from "@/lib/semaforo";
@@ -81,9 +80,149 @@ const a12h = (h: string): string => {
  
 const formatHora = (h: string, usar24h: boolean): string =>
   usar24h ? h : a12h(h);
- 
+
+// Convierte hora 24h a componentes para el selector
+const parsearHora = (h: string): { hora: number; minuto: number; periodo: "AM" | "PM" } => {
+  const [hh, mm] = h.split(":").map(Number);
+  const periodo: "AM" | "PM" = hh < 12 ? "AM" : "PM";
+  const hora12 = hh % 12 === 0 ? 12 : hh % 12;
+  return { hora: hora12, minuto: mm, periodo };
+};
+
+// Convierte componentes del selector a hora 24h
+const armarHora24 = (hora: number, minuto: number, periodo: "AM" | "PM"): string => {
+  let hh = hora % 12;
+  if (periodo === "PM") hh += 12;
+  return `${String(hh).padStart(2, "0")}:${String(minuto).padStart(2, "0")}`;
+};
+
 const ALTURA_HORA = 56;
- 
+
+/* ─── INPUT DE HORA ─── */
+
+type InputHoraProps = {
+  label: string;
+  valor: string;           // siempre 24h internamente
+  onChange: (nueva: string) => void;
+  usar24h: boolean;
+  borderCard: string;
+  colorTitulo: string;
+  colorSub: string;
+  error?: boolean;
+};
+
+function InputHora({ label, valor, onChange, usar24h, borderCard, colorTitulo, colorSub, error }: InputHoraProps) {
+  const { periodo } = parsearHora(valor);
+
+  // Texto visible en el input — 24h o 12h según preferencia
+  const [textoInput, setTextoInput] = useState(usar24h ? valor : a12h(valor).replace(/ AM| PM/, ""));
+
+  // Cuando cambia el valor externo (ej. al abrir el modal) sincronizar
+  useEffect(() => {
+    setTextoInput(usar24h ? valor : a12h(valor).replace(/ AM| PM/, ""));
+  }, [valor, usar24h]);
+
+  const handleChange = (raw: string) => {
+    setTextoInput(raw);
+    if (usar24h) {
+      // Intentar parsear directo
+      const norm = normalizarHora24(raw);
+      if (norm) onChange(norm);
+    } else {
+      // Combinar con el periodo actual para obtener 24h
+      const norm = normalizarHora12(raw, periodo);
+      if (norm) onChange(norm);
+    }
+  };
+
+  const togglePeriodo = () => {
+    const nuevoPeriodo: "AM" | "PM" = periodo === "AM" ? "PM" : "AM";
+    const { hora, minuto } = parsearHora(valor);
+    onChange(armarHora24(hora, minuto, nuevoPeriodo));
+  };
+
+  return (
+    <div>
+      <label style={{ display: "block", fontSize: "11px", fontWeight: 600, color: colorSub, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>
+        {label}
+      </label>
+      <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+        <input
+          type="text"
+          value={textoInput}
+          onChange={e => handleChange(e.target.value)}
+          placeholder={usar24h ? "14:30" : "2:30"}
+          maxLength={5}
+          style={{
+            flex: 1,
+            padding: "10px 12px",
+            borderRadius: "10px",
+            border: error ? "1px solid #e87a6a" : `0.5px solid ${borderCard}`,
+            background: "#fafaf5",
+            fontSize: "15px",
+            color: colorTitulo,
+            fontFamily: "monospace",
+            letterSpacing: "0.5px",
+            outline: "none",
+            boxSizing: "border-box" as const,
+          }}
+        />
+        {/* Toggle AM/PM solo cuando NO es 24h */}
+        {!usar24h && (
+          <button
+            onClick={togglePeriodo}
+            style={{
+              padding: "10px 10px",
+              borderRadius: "10px",
+              border: `0.5px solid ${borderCard}`,
+              background: colorTitulo,
+              color: "white",
+              fontSize: "12px",
+              fontWeight: 700,
+              cursor: "pointer",
+              flexShrink: 0,
+            }}
+          >
+            {periodo}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Normaliza texto a hora 24h
+const normalizarHora24 = (raw: string): string | null => {
+  const limpio = raw.trim();
+  let hh: number, mm: number;
+  if (/^\d{3,4}$/.test(limpio)) {
+    const s = limpio.padStart(4, "0");
+    hh = parseInt(s.slice(0, 2));
+    mm = parseInt(s.slice(2));
+  } else if (/^\d{1,2}:\d{2}$/.test(limpio)) {
+    [hh, mm] = limpio.split(":").map(Number);
+  } else {
+    return null;
+  }
+  if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return null;
+  return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+};
+
+// Normaliza texto 12h + periodo a hora 24h
+const normalizarHora12 = (raw: string, periodo: "AM" | "PM"): string | null => {
+  const limpio = raw.trim();
+  let hh: number, mm: number;
+  if (/^\d{1,2}:\d{2}$/.test(limpio)) {
+    [hh, mm] = limpio.split(":").map(Number);
+  } else if (/^\d{1,2}$/.test(limpio)) {
+    hh = parseInt(limpio); mm = 0;
+  } else {
+    return null;
+  }
+  if (hh < 1 || hh > 12 || mm < 0 || mm > 59) return null;
+  return armarHora24(hh, mm, periodo);
+};
+
 /* ─── COMPONENT ─── */
  
 export default function HorarioPage() {
@@ -202,31 +341,9 @@ export default function HorarioPage() {
     setActividadEdit(null);
     setErrorHora(null);
   };
- 
-  const normalizarHora = (raw: string): string | null => {
-    const limpio = raw.trim();
-    let hh: number, mm: number;
-    if (/^\d{3,4}$/.test(limpio)) {
-      const s = limpio.padStart(4, "0");
-      hh = parseInt(s.slice(0, 2));
-      mm = parseInt(s.slice(2));
-    } else if (/^\d{1,2}:\d{2}$/.test(limpio)) {
-      [hh, mm] = limpio.split(":").map(Number);
-    } else {
-      return null;
-    }
-    if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return null;
-    return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
-  };
- 
+
   const guardarActividad = () => {
-    const inicioNorm = normalizarHora(horaInicio);
-    const finNorm    = normalizarHora(horaFin);
-    if (!inicioNorm || !finNorm) {
-      setErrorHora("Usa el formato HH:MM, por ejemplo 09:15 o 14:30");
-      return;
-    }
-    if (horaAMinutos(inicioNorm) >= horaAMinutos(finNorm)) {
+    if (horaAMinutos(horaInicio) >= horaAMinutos(horaFin)) {
       setErrorHora("La hora de fin debe ser posterior a la de inicio");
       return;
     }
@@ -237,8 +354,8 @@ export default function HorarioPage() {
       nombre:     nombre.trim(),
       tipo,
       energia,
-      horaInicio: inicioNorm,
-      horaFin:    finNorm,
+      horaInicio,
+      horaFin,
     };
     setHorario(prev => {
       const actividadesHoy = (prev[diaModal] ?? []).filter(a => a.id !== nueva.id);
@@ -278,11 +395,9 @@ export default function HorarioPage() {
   const bgPage      = getBgColor(nivelEmocion);
   const borderCard  = getBorderCard(nivelEmocion);
   const bgCard      = "rgba(255,255,255,0.75)";
-  const colorAccion = "#95bd79";                         // botones de acción — fijo siempre
-  const colorTitulo = getTextoPrincipal(nivelEmocion);   // ← NUEVO: títulos y encabezados
-  const colorSub    = getTextoSecundario(nivelEmocion);  // ← NUEVO: subtítulos y labels
-
-  /* ─── ESTILOS DINÁMICOS ─── */
+  const colorAccion = "#95bd79";
+  const colorTitulo = getTextoPrincipal(nivelEmocion);
+  const colorSub    = getTextoSecundario(nivelEmocion);
 
   const inputStyle: React.CSSProperties = {
     width: "100%",
@@ -291,7 +406,7 @@ export default function HorarioPage() {
     border: "0.5px solid #d0d0c0",
     background: "#fafaf5",
     fontSize: "13px",
-    color: colorTitulo,   // ← NUEVO: antes "#27500A" fijo
+    color: colorTitulo,
     marginBottom: "14px",
     boxSizing: "border-box",
     outline: "none",
@@ -348,11 +463,9 @@ export default function HorarioPage() {
             ← Dashboard
           </button>
           <div>
-            {/* ── CAMBIO 1: h2 "Mi semana típica" usa colorTitulo ── */}
             <h2 style={{ margin: 0, color: colorTitulo, fontSize: "20px", fontWeight: 600 }}>
               Mi semana típica
             </h2>
-            {/* ── CAMBIO 2: subtítulo usa colorSub ── */}
             <p style={{ margin: 0, fontSize: "12px", color: colorSub }}>
               Haz clic en cualquier bloque para añadir o editar actividades
             </p>
@@ -360,18 +473,12 @@ export default function HorarioPage() {
         </div>
  
         <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+          {/* Checkbox 24h */}
           <label style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "7px",
-            cursor: "pointer",
-            fontSize: "12px",
-            color: colorSub,
-            fontWeight: 500,
-            userSelect: "none",
-            padding: "6px 10px",
-            borderRadius: "8px",
-            border: `0.5px solid ${borderCard}`,
+            display: "flex", alignItems: "center", gap: "7px",
+            cursor: "pointer", fontSize: "12px", color: colorSub,
+            fontWeight: 500, userSelect: "none", padding: "6px 10px",
+            borderRadius: "8px", border: `0.5px solid ${borderCard}`,
             background: "rgba(255,255,255,0.6)",
           }}>
             <input
@@ -382,22 +489,25 @@ export default function HorarioPage() {
             />
             Reloj 24 h
           </label>
- 
+
+          {/* ── NUEVO: botón + Nueva actividad ── */}
           <button
-            onClick={pedirRecomendaciones}
-            disabled={cargandoIA}
+            onClick={() => abrirModal(DIAS[0])}
             style={{
               background: colorAccion,
               color: "white",
-              border: `0.5px solid ${borderCard}`,
+              border: "none",
               borderRadius: "8px",
               padding: "8px 14px",
               fontSize: "13px",
               cursor: "pointer",
-              fontWeight: 500,
+              fontWeight: 600,
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
             }}
           >
-            {cargandoIA ? "Analizando..." : "⏳ Oh Capitán, mi Capitán"}
+            + Nueva actividad
           </button>
  
           <button
@@ -423,43 +533,30 @@ export default function HorarioPage() {
  
         {/* GRID SEMANAL */}
         <div style={{ background: bgCard, borderRadius: "16px", border: `0.5px solid ${borderCard}`, overflow: "hidden" }}>
- 
-          {/* ── CAMBIO 3: Cabecera días usa colorTitulo ── */}
           <div style={{ display: "grid", gridTemplateColumns: "52px repeat(7, 1fr)", borderBottom: `0.5px solid ${borderCard}` }}>
             <div style={{ padding: "10px 8px" }} />
             {DIAS.map((dia, i) => (
               <div key={dia} style={{
-                padding: "10px 4px",
-                textAlign: "center",
-                fontSize: "12px",
-                fontWeight: 600,
-                color: colorTitulo,
+                padding: "10px 4px", textAlign: "center",
+                fontSize: "12px", fontWeight: 600, color: colorTitulo,
                 borderLeft: `0.5px solid ${borderCard}`,
               }}>
                 <span style={{ display: "block" }}>{DIAS_CORTO[i]}</span>
-                {/* ── CAMBIO 4: nombre completo del día usa colorSub ── */}
                 <span style={{ fontSize: "10px", color: colorSub, fontWeight: 400 }}>{dia}</span>
               </div>
             ))}
           </div>
  
-          {/* Cuerpo */}
           <div style={{ overflowY: "auto", maxHeight: "calc(100vh - 200px)" }}>
             <div style={{ display: "grid", gridTemplateColumns: "52px repeat(7, 1fr)" }}>
- 
-              {/* Horas */}
               <div>
                 {HORAS_GRID.map(hora => {
                   const horaStr = `${String(hora).padStart(2, "0")}:00`;
                   return (
                     <div key={hora} style={{
-                      height: `${ALTURA_HORA}px`,
-                      borderBottom: `0.5px solid ${borderCard}`,
-                      display: "flex",
-                      alignItems: "flex-start",
-                      justifyContent: "flex-end",
-                      paddingRight: "8px",
-                      paddingTop: "4px",
+                      height: `${ALTURA_HORA}px`, borderBottom: `0.5px solid ${borderCard}`,
+                      display: "flex", alignItems: "flex-start",
+                      justifyContent: "flex-end", paddingRight: "8px", paddingTop: "4px",
                     }}>
                       <span style={{ fontSize: "10px", color: "#9aac8a" }}>
                         {formatHora(horaStr, usar24h)}
@@ -469,18 +566,13 @@ export default function HorarioPage() {
                 })}
               </div>
  
-              {/* Columnas por día */}
               {DIAS.map(dia => (
                 <div key={dia} style={{ borderLeft: `0.5px solid ${borderCard}`, position: "relative" }}>
                   {HORAS_GRID.map(hora => (
                     <div
                       key={hora}
                       onClick={() => abrirModal(dia, `${String(hora).padStart(2, "0")}:00`)}
-                      style={{
-                        height: `${ALTURA_HORA}px`,
-                        borderBottom: `0.5px solid ${borderCard}`,
-                        cursor: "pointer",
-                      }}
+                      style={{ height: `${ALTURA_HORA}px`, borderBottom: `0.5px solid ${borderCard}`, cursor: "pointer" }}
                       onMouseEnter={e => (e.currentTarget.style.background = "rgba(178,216,178,0.15)")}
                       onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
                     />
@@ -498,19 +590,11 @@ export default function HorarioPage() {
                         key={act.id}
                         onClick={e => { e.stopPropagation(); abrirModal(dia, act.horaInicio, act); }}
                         style={{
-                          position: "absolute",
-                          top: `${top}px`,
-                          left: "3px",
-                          right: "3px",
-                          height: `${Math.max(height, 22)}px`,
-                          background: tipoData.color,
-                          borderRadius: "8px",
-                          borderLeft: `3px solid ${tipoData.texto}`,
-                          padding: "3px 6px",
-                          cursor: "pointer",
-                          overflow: "hidden",
-                          zIndex: 2,
-                          boxSizing: "border-box",
+                          position: "absolute", top: `${top}px`, left: "3px", right: "3px",
+                          height: `${Math.max(height, 22)}px`, background: tipoData.color,
+                          borderRadius: "8px", borderLeft: `3px solid ${tipoData.texto}`,
+                          padding: "3px 6px", cursor: "pointer", overflow: "hidden",
+                          zIndex: 2, boxSizing: "border-box",
                         }}
                         onMouseEnter={e => { e.currentTarget.style.opacity = "0.85"; }}
                         onMouseLeave={e => { e.currentTarget.style.opacity = "1"; }}
@@ -537,9 +621,7 @@ export default function HorarioPage() {
  
         {/* PANEL LATERAL */}
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
- 
           <div style={{ background: bgCard, borderRadius: "16px", border: `0.5px solid ${borderCard}`, padding: "16px" }}>
-            {/* ── CAMBIO 5: "Tipos de actividad" usa colorTitulo ── */}
             <p style={{ margin: "0 0 10px", fontSize: "12px", fontWeight: 600, color: colorTitulo, textTransform: "uppercase", letterSpacing: "0.5px" }}>
               Tipos de actividad
             </p>
@@ -554,7 +636,6 @@ export default function HorarioPage() {
           </div>
  
           <div style={{ background: bgCard, borderRadius: "16px", border: `0.5px solid ${borderCard}`, padding: "16px" }}>
-            {/* ── CAMBIO 6: "Nivel de energía" usa colorTitulo ── */}
             <p style={{ margin: "0 0 10px", fontSize: "12px", fontWeight: 600, color: colorTitulo, textTransform: "uppercase", letterSpacing: "0.5px" }}>
               Nivel de energía
             </p>
@@ -562,16 +643,29 @@ export default function HorarioPage() {
               {Object.entries(ENERGIA).map(([key, val]) => (
                 <div key={key} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                   <span style={{ fontSize: "14px" }}>{val.emoji}</span>
-                  {/* ── CAMBIO 7: labels de energía usan colorSub ── */}
                   <span style={{ fontSize: "12px", color: colorSub }}>{val.label}</span>
                 </div>
               ))}
             </div>
           </div>
+
+          {/* Botón El Capitán — movido al panel lateral */}
+          <button
+            onClick={pedirRecomendaciones}
+            disabled={cargandoIA}
+            style={{
+              background: colorAccion, color: "white",
+              border: "none", borderRadius: "12px",
+              padding: "12px 14px", fontSize: "13px",
+              cursor: cargandoIA ? "not-allowed" : "pointer",
+              fontWeight: 600, opacity: cargandoIA ? 0.7 : 1,
+            }}
+          >
+            {cargandoIA ? "Analizando..." : "⏳ Pedir consejo al Capitán"}
+          </button>
  
           {recomendaciones.length > 0 && (
             <div style={{ background: bgCard, borderRadius: "16px", border: `0.5px solid ${borderCard}`, padding: "16px" }}>
-              {/* ── CAMBIO 8: "El Capitán dice" usa colorTitulo ── */}
               <p style={{ margin: "0 0 12px", fontSize: "12px", fontWeight: 600, color: colorTitulo, textTransform: "uppercase", letterSpacing: "0.5px" }}>
                 ⏳ El Capitán dice
               </p>
@@ -585,13 +679,9 @@ export default function HorarioPage() {
                   const c = colores[r.tipo];
                   return (
                     <div key={i} style={{
-                      background: c.bg,
-                      border: `0.5px solid ${c.borde}`,
-                      borderRadius: "10px",
-                      padding: "10px 12px",
-                      fontSize: "12px",
-                      color: c.texto,
-                      lineHeight: 1.5,
+                      background: c.bg, border: `0.5px solid ${c.borde}`,
+                      borderRadius: "10px", padding: "10px 12px",
+                      fontSize: "12px", color: c.texto, lineHeight: 1.5,
                     }}>
                       {r.mensaje}
                     </div>
@@ -603,7 +693,6 @@ export default function HorarioPage() {
  
           {cargandoIA && (
             <div style={{ background: bgCard, borderRadius: "16px", border: `0.5px solid ${borderCard}`, padding: "20px", textAlign: "center" }}>
-              {/* ── CAMBIO 9: mensaje cargando IA usa colorSub ── */}
               <p style={{ margin: 0, fontSize: "13px", color: colorSub, fontStyle: "italic" }}>
                 El Capitán está analizando tu semana...
               </p>
@@ -617,32 +706,24 @@ export default function HorarioPage() {
         <div
           onClick={cerrarModal}
           style={{
-            position: "fixed", inset: 0,
-            background: "rgba(0,0,0,0.35)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            zIndex: 100,
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)",
+            display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100,
           }}
         >
           <div
             onClick={e => e.stopPropagation()}
             style={{
-              background: "white",
-              borderRadius: "20px",
-              padding: "28px",
-              width: "380px",
-              maxWidth: "92vw",
+              background: "white", borderRadius: "20px", padding: "28px",
+              width: "min(560px, 92vw)",
               border: `0.5px solid ${borderCard}`,
-              maxHeight: "90vh",
-              overflowY: "auto",
+              maxHeight: "90vh", overflowY: "auto", overflowX: "hidden",
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "20px" }}>
               <div>
-                {/* ── CAMBIO 10: título del modal usa colorTitulo ── */}
                 <h4 style={{ margin: 0, color: colorTitulo, fontSize: "16px", fontWeight: 600 }}>
                   {actividadEdit ? "Editar actividad" : "Nueva actividad"}
                 </h4>
-                {/* ── CAMBIO 11: nombre del día en modal usa colorSub ── */}
                 <p style={{ margin: 0, fontSize: "12px", color: colorSub }}>{diaModal}</p>
               </div>
               {actividadEdit && (
@@ -654,6 +735,30 @@ export default function HorarioPage() {
                 </button>
               )}
             </div>
+
+            {/* Selector de día — solo visible cuando se abre desde el botón del header */}
+            {!actividadEdit && (
+              <div style={{ marginBottom: "16px" }}>
+                <label style={labelStyle(colorSub)}>Día</label>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                  {DIAS.map((dia, i) => (
+                    <button
+                      key={dia}
+                      onClick={() => setDiaModal(dia)}
+                      style={{
+                        padding: "6px 10px", borderRadius: "8px", fontSize: "12px",
+                        fontWeight: diaModal === dia ? 700 : 500, cursor: "pointer",
+                        border: diaModal === dia ? `1.5px solid ${colorTitulo}` : `0.5px solid ${borderCard}`,
+                        background: diaModal === dia ? colorTitulo : "white",
+                        color: diaModal === dia ? "white" : colorSub,
+                      }}
+                    >
+                      {DIAS_CORTO[i]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
  
             <label style={labelStyle(colorSub)}>Nombre de la actividad</label>
             <input
@@ -663,51 +768,36 @@ export default function HorarioPage() {
               style={inputStyle}
               autoFocus
             />
- 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: errorHora ? "6px" : "16px" }}>
-              <div>
-                <label style={labelStyle(colorSub)}>Inicio</label>
-                <input
-                  type="text"
-                  value={horaInicio}
-                  onChange={e => { setHoraInicio(e.target.value); setErrorHora(null); }}
-                  placeholder="09:15"
-                  maxLength={5}
-                  style={{
-                    ...inputStyle,
-                    marginBottom: 0,
-                    fontFamily: "monospace",
-                    fontSize: "15px",
-                    letterSpacing: "0.5px",
-                    border: errorHora ? "1px solid #e87a6a" : `0.5px solid ${borderCard}`,
-                  }}
-                />
-              </div>
-              <div>
-                <label style={labelStyle(colorSub)}>Fin</label>
-                <input
-                  type="text"
-                  value={horaFin}
-                  onChange={e => { setHoraFin(e.target.value); setErrorHora(null); }}
-                  placeholder="10:45"
-                  maxLength={5}
-                  style={{
-                    ...inputStyle,
-                    marginBottom: 0,
-                    fontFamily: "monospace",
-                    fontSize: "15px",
-                    letterSpacing: "0.5px",
-                    border: errorHora ? "1px solid #e87a6a" : `0.5px solid ${borderCard}`,
-                  }}
-                />
-              </div>
+
+            {/* ── Inputs de hora con toggle AM/PM ── */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "16px" }}>
+              <InputHora
+                label="Inicio"
+                valor={horaInicio}
+                onChange={setHoraInicio}
+                usar24h={usar24h}
+                borderCard={borderCard}
+                colorTitulo={colorTitulo}
+                colorSub={colorSub}
+                error={!!errorHora}
+              />
+              <InputHora
+                label="Fin"
+                valor={horaFin}
+                onChange={val => { setHoraFin(val); setErrorHora(null); }}
+                usar24h={usar24h}
+                borderCard={borderCard}
+                colorTitulo={colorTitulo}
+                colorSub={colorSub}
+                error={!!errorHora}
+              />
             </div>
- 
-            <p style={{ margin: "4px 0 12px", fontSize: "11px", color: errorHora ? "#c45c5c" : "#9aac8a", lineHeight: 1.4 }}>
-              {errorHora
-                ? `⚠️ ${errorHora}`
-                : "Usa HH:MM — puedes poner cualquier minuto, ej. 09:15, 10:45, 13:20"}
-            </p>
+
+            {errorHora && (
+              <p style={{ margin: "-8px 0 12px", fontSize: "11px", color: "#c45c5c" }}>
+                ⚠️ {errorHora}
+              </p>
+            )}
  
             <label style={labelStyle(colorSub)}>Tipo de actividad</label>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "6px", marginBottom: "16px" }}>
@@ -716,13 +806,11 @@ export default function HorarioPage() {
                   key={key}
                   onClick={() => setTipo(key as TipoActividad)}
                   style={{
-                    padding: "8px 6px",
-                    borderRadius: "10px",
+                    padding: "8px 6px", borderRadius: "10px",
                     border: tipo === key ? `2px solid ${val.texto}` : "1.5px solid transparent",
                     background: tipo === key ? val.color : "#f5f5f0",
                     color: tipo === key ? val.texto : "#888",
-                    fontSize: "11px",
-                    cursor: "pointer",
+                    fontSize: "11px", cursor: "pointer",
                     fontWeight: tipo === key ? 600 : 400,
                   }}
                 >
@@ -738,18 +826,13 @@ export default function HorarioPage() {
                   key={key}
                   onClick={() => setEnergia(key as NivelEnergia)}
                   style={{
-                    padding: "8px 12px",
-                    borderRadius: "10px",
+                    padding: "8px 12px", borderRadius: "10px",
                     border: energia === key ? `1.5px solid ${val.texto}` : "1.5px solid transparent",
                     background: energia === key ? val.color : "#f5f5f0",
                     color: energia === key ? val.texto : "#888",
-                    fontSize: "12px",
-                    cursor: "pointer",
+                    fontSize: "12px", cursor: "pointer",
                     fontWeight: energia === key ? 600 : 400,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    textAlign: "left",
+                    display: "flex", alignItems: "center", gap: "8px", textAlign: "left",
                   }}
                 >
                   <span style={{ fontSize: "16px" }}>{val.emoji}</span>
@@ -769,13 +852,9 @@ export default function HorarioPage() {
                 onClick={guardarActividad}
                 disabled={!nombre.trim()}
                 style={{
-                  flex: 2,
-                  padding: "10px",
-                  borderRadius: "10px",
-                  border: "none",
+                  flex: 2, padding: "10px", borderRadius: "10px", border: "none",
                   background: nombre.trim() ? colorAccion : "#ccc",
-                  color: "white",
-                  fontSize: "13px",
+                  color: "white", fontSize: "13px",
                   cursor: nombre.trim() ? "pointer" : "not-allowed",
                   fontWeight: 600,
                 }}
@@ -790,14 +869,11 @@ export default function HorarioPage() {
   );
 }
  
-/* ─── ESTILOS ESTÁTICOS ─── */
-
-// labelStyle ahora es una función que recibe el color dinámico
 const labelStyle = (color: string): React.CSSProperties => ({
   display: "block",
   fontSize: "11px",
   fontWeight: 600,
-  color,                    // ← NUEVO: antes "#6b8c5a" fijo
+  color,
   textTransform: "uppercase",
   letterSpacing: "0.5px",
   marginBottom: "6px",

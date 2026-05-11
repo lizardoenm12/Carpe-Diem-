@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const GEMINI_API_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 
 export async function POST(req: NextRequest) {
   try {
@@ -53,7 +53,7 @@ Reglas estrictas:
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
           temperature: 0.5,
-          maxOutputTokens: 2000,
+          maxOutputTokens: 8192,
         },
       }),
     });
@@ -69,7 +69,10 @@ Reglas estrictas:
 
     const geminiData = await geminiRes.json();
     const texto = geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-    const limpio = texto.replace(/```json|```/g, "").trim();
+
+    // Extraer solo el bloque JSON aunque Gemini agregue texto antes o después
+    const jsonMatch = texto.match(/\{[\s\S]*\}/);
+    const limpio = jsonMatch ? jsonMatch[0].trim() : texto.replace(/```json|```/g, "").trim();
 
     let parsed: {
       preguntas: { pregunta: string; opciones: string[]; correcta: string }[];

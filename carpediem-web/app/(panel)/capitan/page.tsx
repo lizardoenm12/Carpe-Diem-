@@ -6,6 +6,7 @@ import { addDoc, collection, getDocs, query, where, doc, getDoc } from "firebase
 import { db } from "@/lib/firebase";
 import { COLLECTIONS } from "@/lib/firestore_colections";
 import { getBgColor, getBorderCard, getTextoPrincipal, getTextoSecundario } from "@/lib/semaforo";
+import ReactMarkdown from "react-markdown";
 
 type Mensaje = {
   rol: "usuario" | "capitan";
@@ -168,13 +169,24 @@ export default function Capitan() {
               background: m.rol === "usuario" ? "#B2D8B2" : "white",
               border: m.rol === "capitan" ? `0.5px solid ${borderCard}` : "none",
             }}>
-              <p style={{
-                fontSize:"14px", margin:0, lineHeight:1.6,
-                color: m.rol === "usuario" ? colorTexto : "#444",
-                whiteSpace:"pre-wrap",
-              }}>
-                {m.texto}
-              </p>
+              {m.rol === "usuario" ? (
+                // Mensajes del usuario — texto plano
+                <p style={{
+                  fontSize:"14px", margin:0, lineHeight:1.6,
+                  color: colorTexto, whiteSpace:"pre-wrap",
+                }}>
+                  {m.texto}
+                </p>
+              ) : (
+                // Mensajes del Capitán — Markdown renderizado
+                <div style={{ fontSize:"14px", lineHeight:1.7, color:"#444" }}
+                  className="capitan-markdown"
+                >
+                  <ReactMarkdown>
+                    {m.texto}
+                  </ReactMarkdown>
+                </div>
+              )}
             </div>
           </div>
         ))}

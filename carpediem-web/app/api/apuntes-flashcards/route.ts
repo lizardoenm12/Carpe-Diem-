@@ -1,8 +1,7 @@
-// /api/apuntes-flashcards/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const GEMINI_API_URL =
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,10 +14,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: "GEMINI_API_KEY no configurada." },
+        { status: 500 }
+      );
+    }
 
-    const prompt = `
-Eres un tutor experto creando flashcards de estudio para un estudiante universitario.
+    const prompt = `Eres un tutor experto creando flashcards de estudio para un estudiante universitario.
 
 Materia: "${subjectName}"
 Tema: "${tema}"
@@ -29,9 +33,9 @@ Cada flashcard debe tener:
 - Una respuesta completa pero resumida (máximo 3 líneas)
 - Un nivel de dificultad: "facil", "medio" o "dificil"
 
-IMPORTANTE: Responde ÚNICAMENTE con un JSON válido, sin texto adicional, sin backticks, sin explicaciones.
-
-Formato exacto:
+Reglas estrictas:
+- Devuelve SOLO un JSON válido, sin markdown, sin backticks, sin texto adicional.
+- Formato exacto:
 {
   "flashcards": [
     {
@@ -40,28 +44,61 @@ Formato exacto:
       "dificultad": "facil"
     }
   ]
-}
-`;
+}`;
 
-    const result = await model.generateContent(prompt);
-    const text = result.response.text().trim();
+    const geminiRes = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.4,
+          maxOutputTokens: 2000,
+        },
+      }),
+    });
 
-    // Limpiar posibles backticks que Gemini a veces agrega
-    const clean = text.replace(/```json|```/g, "").trim();
-    const parsed = JSON.parse(clean);
-
-    if (!parsed.flashcards || !Array.isArray(parsed.flashcards)) {
+    if (!geminiRes.ok) {
+      const err = await geminiRes.text();
+      console.error("Gemini error:", err);
       return NextResponse.json(
-        { error: "La IA no devolvió el formato esperado." },
+        { error: "Error al consultar Gemini." },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({ flashcards: parsed.flashcards });
-  } catch (error) {
-    console.error("Error generando flashcards:", error);
+    const geminiData = await geminiRes.json();
+    const texto = geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+    const limpio = texto.replace(/```json|```/g, "").trim();
+
+    let parsed: { flashcards: { pregunta: string; respuesta: string; dificultad: string }[] };
+
+    try {
+      parsed = JSON.parse(limpio);
+    } catch {
+      console.error("Error parseando respuesta de Gemini:", limpio);
+      return NextResponse.json(
+        { error: "La IA no devolvió un formato válido. Intenta de nuevo." },
+        { status: 422 }
+      );
+    }
+
+    if (!parsed.flashcards || !Array.isArray(parsed.flashcards)) {
+      return NextResponse.json(
+        { error: "Formato inesperado en la respuesta de la IA." },
+        { status: 422 }
+      );
+    }
+
+    const flashcards = parsed.flashcards
+      .filter((f) => f.pregunta && f.respuesta && f.dificultad)
+      .slice(0, 8);
+
+    return NextResponse.json({ flashcards });
+  } catch (err) {
+    console.error("Error en /api/apuntes-flashcards:", err);
     return NextResponse.json(
-      { error: "Error al generar las flashcards. Intenta de nuevo." },
+      { error: "Error interno del servidor." },
       { status: 500 }
     );
   }

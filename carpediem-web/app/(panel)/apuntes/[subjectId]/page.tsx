@@ -244,29 +244,33 @@ export default function SubjectDetailPage() {
 
   /* ─── CHAT ─── */
 
-  const handleSendQuestion = async () => {
-    if (!question.trim() || enviando) return;
-    const userMsg: ChatMessage = { role: "user", text: question.trim() };
-    setMessages(prev => [...prev, userMsg]);
-    setQuestion("");
-    setEnviando(true);
+const handleSendQuestion = async () => {
+  if (!question.trim() || enviando) return;
+  const userMsg: ChatMessage = { role: "user", text: question.trim() };
+  setMessages(prev => [...prev, userMsg]);
+  setQuestion("");
+  setEnviando(true);
 
-    try {
-      const res = await fetch("/api/capitan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mensaje: userMsg.text,
-          contexto: `Estás ayudando con la materia "${subject?.name}". Responde como el Capitán Keating.`,
-          nivelEmocion,
-        }),
-      });
-      const data = await res.json();
-      setMessages(prev => [...prev, { role: "captain", text: data.respuesta ?? "Hmm, déjame pensar en eso..." }]);
-    } catch {
-      setMessages(prev => [...prev, { role: "captain", text: "No pude conectarme ahora. Intenta de nuevo." }]);
-    } finally { setEnviando(false); }
-  };
+  try {
+    const res = await fetch("/api/capitan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: userMsg.text,
+        subjectName: subject?.name ?? "",
+        userName: currentUser?.displayName || currentUser?.email || "estudiante",
+        history: messages.map(m => ({
+          role: m.role === "user" ? "user" : "captain",
+          text: m.text,
+        })),
+      }),
+    });
+    const data = await res.json();
+    setMessages(prev => [...prev, { role: "captain", text: data.reply ?? "Hmm, déjame pensar en eso..." }]);
+  } catch {
+    setMessages(prev => [...prev, { role: "captain", text: "No pude conectarme ahora. Intenta de nuevo." }]);
+  } finally { setEnviando(false); }
+};
 
   const saveCurrentChat = async () => {
     if (!currentUser) return;
