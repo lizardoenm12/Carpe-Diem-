@@ -131,7 +131,9 @@ fun MainScaffold(
                     },
                     onCheckInClick = onCheckInClick,
                     onScheduleClick = onScheduleClick,
-                    onGamesClick = onGamesClick,
+                    onGamesClick = {
+                        bottomNavController.navigate(Routes.Games.route)
+                    },
                     onProfileClick = {
                         bottomNavController.navigate(Routes.Profile.route)
                     }

@@ -4,6 +4,7 @@ package com.example.carpediem.presentation.checkin
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.carpediem.ui.theme.EmotionColorManager
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -13,7 +14,6 @@ import kotlinx.coroutines.tasks.await
 import java.text.SimpleDateFormat
 import java.util.*
 
-// ── Modelo ────────────────────────────────────────────────────────────────────
 data class Emocion(
     val label: String,
     val emoji: String,
@@ -31,7 +31,6 @@ val emociones = listOf(
     Emocion("Burnout",   "🌑", Color(0xFFC45C5C), Color(0xFFFAF0F0), 1),
 )
 
-// ── ViewModel ─────────────────────────────────────────────────────────────────
 class CheckInViewModel : ViewModel() {
 
     private val auth      = FirebaseAuth.getInstance()
@@ -57,12 +56,21 @@ class CheckInViewModel : ViewModel() {
                     .document("${uid}_${fecha}")
                     .set(
                         mapOf(
-                            "uid"    to uid,
-                            "emocion" to emocion.label,
-                            "nivel"  to emocion.nivel,
-                            "fecha"  to System.currentTimeMillis()
+                            "uid"          to uid,
+                            "emocion"      to emocion.label,
+                            "nivel"        to emocion.nivel,
+                            "color"        to colorToHex(emocion.color),
+                            "fondo"        to colorToHex(emocion.fondo),
+                            "emotionColor" to colorToHex(emocion.fondo),
+                            "estado"       to emocion.label,
+                            "fechaTexto"   to fecha,
+                            "createdAt"    to System.currentTimeMillis()
                         )
                     ).await()
+
+                // Notificar al singleton → toda la app cambia color
+                EmotionColorManager.setNivel(emocion.nivel)
+
                 _finished.value = true
             } catch (e: Exception) {
                 _errorMessage.value = "Error al guardar. Intenta de nuevo."
@@ -70,5 +78,12 @@ class CheckInViewModel : ViewModel() {
                 _isLoading.value = false
             }
         }
+    }
+
+    private fun colorToHex(color: Color): String {
+        val red   = (color.red   * 255).toInt()
+        val green = (color.green * 255).toInt()
+        val blue  = (color.blue  * 255).toInt()
+        return String.format("#%02X%02X%02X", red, green, blue)
     }
 }

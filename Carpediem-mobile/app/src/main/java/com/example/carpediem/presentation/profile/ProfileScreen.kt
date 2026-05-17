@@ -14,6 +14,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.carpediem.ui.theme.EmotionColorManager
+import com.example.carpediem.ui.theme.emotionAccentColor
+import com.example.carpediem.ui.theme.emotionBackgroundColor
+import com.example.carpediem.ui.theme.emotionCardColor
 import com.google.firebase.auth.FirebaseAuth
 
 @Composable
@@ -24,11 +28,16 @@ fun ProfileScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
 
+    val nivel by EmotionColorManager.nivelEmocion.collectAsState()
+    val background = emotionBackgroundColor(nivel)
+    val cardColor = emotionCardColor(nivel)
+    val accentColor = emotionAccentColor(nivel)
+
     if (state.isLoading) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xFFF5F5DC)),
+                .background(background),
             contentAlignment = Alignment.Center
         ) {
             CircularProgressIndicator()
@@ -39,132 +48,170 @@ fun ProfileScreen(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF5F5DC))
+            .background(background)
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) { item {
-        Text(
-            text = "← Volver",
-            color = Color(0xFF27500A),
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.clickable { onBackClick() }
-        )
+    ) {
+        item {
+            Text(
+                text = "← Volver",
+                color = Color(0xFF27500A),
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.clickable { onBackClick() }
+            )
 
-        Text(
-            text = "Mi perfil",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFF27500A)
-        )
+            Spacer(modifier = Modifier.height(12.dp))
 
-        Text(
-            text = "Personaliza cómo Carpe Diem adapta tu estudio.",
-            color = Color.Gray
-        )
+            Text(
+                text = "Mi perfil",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF27500A)
+            )
 
-        ProfileHeaderCard(state)
-
-        ProfileTextField(
-            label = "Nombre",
-            value = state.displayName,
-            onValueChange = viewModel::updateDisplayName
-        )
-
-        OptionSection(
-            title = "Estilo de estudio",
-            selected = state.studyStyle,
-            options = listOf(
-                "visual" to "Visual",
-                "lectura" to "Lectura",
-                "practico" to "Práctico",
-                "mixto" to "Mixto"
-            ),
-            onSelect = viewModel::updateStudyStyle
-        )
-
-        OptionSection(
-            title = "Intensidad preferida",
-            selected = state.preferredIntensity,
-            options = listOf(
-                "suave" to "Suave",
-                "normal" to "Normal",
-                "intensa" to "Intensa"
-            ),
-            onSelect = viewModel::updateIntensity
-        )
-
-        OptionSection(
-            title = "Meta actual",
-            selected = state.currentGoal,
-            options = listOf(
-                "organizacion" to "Organizar mi estudio",
-                "examen" to "Preparar examen",
-                "tareas" to "Terminar tareas",
-                "repaso" to "Repasar contenido"
-            ),
-            onSelect = viewModel::updateGoal
-        )
-
-        OptionSection(
-            title = "Tono del Capitán",
-            selected = state.tonoCapitan,
-            options = listOf(
-                "poetico" to "Poético",
-                "directo" to "Directo",
-                "mixto" to "Mixto"
-            ),
-            onSelect = viewModel::updateTonoCapitan
-        )
-
-        ProfileTextField(
-            label = "Nota para el Capitán",
-            value = state.notaCapitan,
-            onValueChange = viewModel::updateNotaCapitan
-        )
-
-        ProfileTextField(
-            label = "Frase personal",
-            value = state.frasePersonal,
-            onValueChange = viewModel::updateFrasePersonal
-        )
-    }
-    item {
-        Button(
-            onClick = { viewModel.saveProfile() },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFFB2D8B2),
-                contentColor = Color(0xFF27500A)
-            ),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Text(if (state.saving) "Guardando..." else "Guardar cambios")
+            Text(
+                text = "Personaliza cómo Carpe Diem adapta tu estudio.",
+                color = Color.Gray
+            )
         }
 
-        Button(
-            onClick = {
-                FirebaseAuth.getInstance().signOut()
-                onLogout()
-            },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color.White,
-                contentColor = Color(0xFF27500A)
-            ),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Text("Cerrar sesión")
+        item {
+            ProfileHeaderCard(
+                state = state,
+                cardColor = cardColor,
+                accentColor = accentColor
+            )
         }
-    }
+
+        item {
+            ProfileTextField(
+                label = "Nombre",
+                value = state.displayName,
+                onValueChange = viewModel::updateDisplayName
+            )
+        }
+
+        item {
+            OptionSection(
+                title = "Estilo de estudio",
+                selected = state.studyStyle,
+                cardColor = cardColor,
+                options = listOf(
+                    "visual" to "Visual",
+                    "lectura" to "Lectura",
+                    "practico" to "Práctico",
+                    "mixto" to "Mixto"
+                ),
+                onSelect = viewModel::updateStudyStyle
+            )
+        }
+
+        item {
+            OptionSection(
+                title = "Intensidad preferida",
+                selected = state.preferredIntensity,
+                cardColor = cardColor,
+                options = listOf(
+                    "suave" to "Suave",
+                    "normal" to "Normal",
+                    "intensa" to "Intensa"
+                ),
+                onSelect = viewModel::updateIntensity
+            )
+        }
+
+        item {
+            OptionSection(
+                title = "Meta actual",
+                selected = state.currentGoal,
+                cardColor = cardColor,
+                options = listOf(
+                    "organizacion" to "Organizar mi estudio",
+                    "examen" to "Preparar examen",
+                    "tareas" to "Terminar tareas",
+                    "repaso" to "Repasar contenido"
+                ),
+                onSelect = viewModel::updateGoal
+            )
+        }
+
+        item {
+            OptionSection(
+                title = "Tono del Capitán",
+                selected = state.tonoCapitan,
+                cardColor = cardColor,
+                options = listOf(
+                    "poetico" to "Poético",
+                    "directo" to "Directo",
+                    "mixto" to "Mixto"
+                ),
+                onSelect = viewModel::updateTonoCapitan
+            )
+        }
+
+        item {
+            ProfileTextField(
+                label = "Nota para el Capitán",
+                value = state.notaCapitan,
+                onValueChange = viewModel::updateNotaCapitan
+            )
+        }
+
+        item {
+            ProfileTextField(
+                label = "Frase personal",
+                value = state.frasePersonal,
+                onValueChange = viewModel::updateFrasePersonal
+            )
+        }
+
+        item {
+            Button(
+                onClick = { viewModel.saveProfile() },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = accentColor,
+                    contentColor = Color(0xFF27500A)
+                ),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Text(if (state.saving) "Guardando..." else "Guardar cambios")
+            }
+        }
+
+        item {
+            Button(
+                onClick = {
+                    FirebaseAuth.getInstance().signOut()
+                    onLogout()
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = cardColor,
+                    contentColor = Color(0xFF27500A)
+                ),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Text("Cerrar sesión")
+            }
+        }
+
+        item {
+            Spacer(modifier = Modifier.height(80.dp))
+        }
     }
 }
 
 @Composable
-private fun ProfileHeaderCard(state: ProfileUiState) {
+private fun ProfileHeaderCard(
+    state: ProfileUiState,
+    cardColor: Color,
+    accentColor: Color
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+        colors = CardDefaults.cardColors(containerColor = cardColor)
     ) {
         Column(
             modifier = Modifier.padding(22.dp),
@@ -173,7 +220,7 @@ private fun ProfileHeaderCard(state: ProfileUiState) {
             Surface(
                 modifier = Modifier.size(82.dp),
                 shape = CircleShape,
-                color = Color(0xFFE1F5EE)
+                color = accentColor.copy(alpha = 0.6f)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Text(
@@ -228,13 +275,14 @@ private fun ProfileTextField(
 private fun OptionSection(
     title: String,
     selected: String,
+    cardColor: Color,
     options: List<Pair<String, String>>,
     onSelect: (String) -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+        colors = CardDefaults.cardColors(containerColor = cardColor)
     ) {
         Column(
             modifier = Modifier.padding(16.dp)

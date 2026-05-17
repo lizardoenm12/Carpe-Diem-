@@ -2,6 +2,9 @@ package com.example.carpediem.presentation.dashboard
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.carpediem.ui.theme.EmotionColorManager
+import com.example.carpediem.ui.theme.emotionHexColor
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -9,6 +12,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -20,13 +24,16 @@ data class DashboardUiState(
     val totalMaterias: Int = 0,
     val ultimaMateria: String? = null,
     val eventos: List<DashboardEvent> = emptyList(),
-    val actividadesHoy: List<DashboardActivity> = emptyList()
+    val actividadesHoy: List<DashboardActivity> = emptyList(),
+    val emotionColor: String = "#F5F5DC"
 )
 
 data class DashboardEvent(
     val id: String = "",
     val titulo: String = "",
-    val fechaTexto: String = ""
+    val fechaTexto: String = "",
+    val fechaMillis: Long = 0L,
+    val tipo: String = "tarea"
 )
 
 data class DashboardActivity(
@@ -59,66 +66,75 @@ class DashboardViewModel : ViewModel() {
                     ?.firstOrNull()
                     ?: "Capitán"
 
-                val userDoc = db.collection("users")
-                    .document(user.uid)
+                // CHECK-IN
+                val checkInSnap = db.collection("checkins")
+                    .whereEqualTo("uid", user.uid)
                     .get()
                     .await()
 
-                val nivel = userDoc.getLong("nivelActual")?.toInt() ?: 5
-                val metodo = userDoc.getString("metodo") ?: "Pomodoro"
+                val checkInDoc = checkInSnap.documents.maxByOrNull { doc ->
+                    readMillis(doc.get("createdAt"))
+                }
+                val nivel = checkInDoc?.getLong("nivel")?.toInt() ?: 5
 
-                val mensaje = buildMensajeCapitan(firstName, nivel, metodo)
+               // EmotionColorManager.setNivel(nivel)
 
+                //val emotionColor = emotionHexColor(nivel)
+                val emotionColor = "#E1F5EE"
+                val mensaje = buildMensajeCapitan(firstName, nivel)
+
+                // MATERIAS
                 val materiasSnap = db.collection("subjects")
                     .whereEqualTo("uid", user.uid)
                     .get()
                     .await()
 
                 val materias = materiasSnap.documents
+
                 val ultimaMateria = materias
-                    .maxByOrNull { it.getTimestamp("createdAt")?.seconds ?: 0 }
+                    .maxByOrNull { doc ->
+                        readMillis(doc.get("createdAt"))
+                    }
                     ?.getString("name")
 
+                // EVENTOS
                 val eventosSnap = db.collection("eventos")
                     .whereEqualTo("uid", user.uid)
-                    .limit(20)
                     .get()
                     .await()
 
                 val eventos = eventosSnap.documents
-                    .filter { it.getBoolean("completado") != true }
-                    .map {
+                    .map { doc ->
+                        val fechaMillis = readFechaMillis(
+                            doc.get("fecha") ?: doc.get("date")
+                        )
+
                         DashboardEvent(
-                            id = it.id,
-                            titulo = it.getString("titulo") ?: "Sin título",
-                            fechaTexto = formatDate(it.getDate("fecha"))
+                            id = doc.id,
+                            titulo = doc.getString("titulo")
+                                ?: doc.getString("title")
+                                ?: "Sin título",
+                            fechaTexto = formatDate(fechaMillis),
+                            fechaMillis = fechaMillis,
+                            tipo = doc.getString("tipo") ?: "tarea"
                         )
                     }
-                    .take(4)
+                    .filter { it.fechaMillis != 0L }
+                    .sortedBy { it.fechaMillis }
+                    .take(6)
 
-                val diaActual = SimpleDateFormat("EEEE", Locale("es", "GT"))
-                    .format(Date())
-                    .replaceFirstChar { it.uppercase() }
-
-                val horarioDoc = db.collection("horarios")
-                    .document(user.uid)
-                    .get()
-                    .await()
-
-                val actividadesHoy = mutableListOf<DashboardActivity>()
-
-                val lista = horarioDoc.get(diaActual) as? List<Map<String, Any>>
-                lista?.forEach { item ->
-                    actividadesHoy.add(
+                // ACTIVIDADES DE HOY
+                val actividadesHoy = eventos
+                    .filter { isToday(it.fechaMillis) }
+                    .map { evento ->
                         DashboardActivity(
-                            id = item["id"]?.toString() ?: "",
-                            nombre = item["nombre"]?.toString() ?: "",
-                            tipo = item["tipo"]?.toString() ?: "estudio",
-                            horaInicio = item["horaInicio"]?.toString() ?: "",
-                            horaFin = item["horaFin"]?.toString() ?: ""
+                            id = evento.id,
+                            nombre = evento.titulo,
+                            tipo = evento.tipo,
+                            horaInicio = "Hoy",
+                            horaFin = evento.fechaTexto
                         )
-                    )
-                }
+                    }
 
                 _uiState.value = DashboardUiState(
                     isLoading = false,
@@ -128,41 +144,94 @@ class DashboardViewModel : ViewModel() {
                     totalMaterias = materias.size,
                     ultimaMateria = ultimaMateria,
                     eventos = eventos,
-                    actividadesHoy = actividadesHoy.sortedBy { it.horaInicio }
+                    actividadesHoy = actividadesHoy,
+                    emotionColor = emotionColor
                 )
 
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
+                _uiState.value = DashboardUiState(
                     isLoading = false,
-                    mensajeCapitan = "No pude cargar todo el dashboard. Revisa Firestore o las rutas."
+                    mensajeCapitan = e.message ?: "Error desconocido",
+                    emotionColor = "#F5F5DC"
                 )
             }
         }
     }
 
-    private fun buildMensajeCapitan(nombre: String, nivel: Int, metodo: String): String {
+    private fun buildMensajeCapitan(nombre: String, nivel: Int): String {
         return when {
-            nivel < 3 && metodo == "Pomodoro" ->
-                "Veo que hoy el ánimo está bajo, $nombre. Probemos estudiar sin presión y con pausas suaves."
+            nivel <= 2 ->
+                "Hoy parece un día pesado, $nombre. Vamos paso a paso, sin presión."
 
-            nivel >= 5 ->
-                "¡Oh Capitán, mi Capitán! Tienes buena energía hoy, $nombre. Es buen momento para avanzar."
+            nivel <= 4 ->
+                "Respira, $nombre. Podemos ordenar una tarea pequeña y avanzar."
 
             else ->
-                "Hola $nombre. Un paso a la vez es suficiente por hoy."
+                "¡Oh Capitán, mi Capitán! Hoy tienes buena energía para avanzar, $nombre."
         }
     }
 
-    private fun formatDate(date: Date?): String {
-        if (date == null) return "Pronto"
+    private fun readFechaMillis(value: Any?): Long {
+        return when (value) {
+            is Timestamp -> value.toDate().time
+            is Date -> value.time
+            is Long -> value
+            is Double -> value.toLong()
+            is String -> {
+                try {
+                    val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                    formatter.parse(value)?.time ?: 0L
+                } catch (e: Exception) {
+                    0L
+                }
+            }
+            else -> 0L
+        }
+    }
 
-        val today = SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(Date())
-        val eventDay = SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(date)
+    private fun readMillis(value: Any?): Long {
+        return when (value) {
+            is Timestamp -> value.toDate().time
+            is Date -> value.time
+            is Long -> value
+            is Double -> value.toLong()
+            else -> 0L
+        }
+    }
+
+    private fun formatDate(fechaMillis: Long): String {
+        if (fechaMillis == 0L) return "Sin fecha"
+
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+            .format(Date())
+
+        val eventDay = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+            .format(Date(fechaMillis))
 
         return if (today == eventDay) {
             "Hoy"
         } else {
-            SimpleDateFormat("dd MMM", Locale("es", "GT")).format(date)
+            SimpleDateFormat("dd MMM yyyy", Locale("es", "GT"))
+                .format(Date(fechaMillis))
         }
+    }
+
+    private fun startOfTodayMillis(): Long {
+        return Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+    }
+
+    private fun isToday(time: Long): Boolean {
+        val today = Calendar.getInstance()
+        val other = Calendar.getInstance().apply {
+            timeInMillis = time
+        }
+
+        return today.get(Calendar.YEAR) == other.get(Calendar.YEAR) &&
+                today.get(Calendar.DAY_OF_YEAR) == other.get(Calendar.DAY_OF_YEAR)
     }
 }

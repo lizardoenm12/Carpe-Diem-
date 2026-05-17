@@ -23,12 +23,22 @@ import android.app.DatePickerDialog
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.ui.platform.LocalContext
+import com.example.carpediem.ui.theme.EmotionColorManager
+import com.example.carpediem.ui.theme.emotionBackgroundColor
+import com.example.carpediem.ui.theme.emotionCardColor
+import com.example.carpediem.ui.theme.emotionAccentColor
 @Composable
 fun CalendarScreen(
     viewModel: CalendarViewModel = viewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+
+
+    val nivel by EmotionColorManager.nivelEmocion.collectAsState()
+    val background = emotionBackgroundColor(nivel)
+    val cardColor = emotionCardColor(nivel)
+    val accentColor = emotionAccentColor(nivel)
 
     var showAddDialog by remember { mutableStateOf(false) }
     var newTitle by remember { mutableStateOf("") }
@@ -76,7 +86,7 @@ fun CalendarScreen(
 
     Surface(
         modifier = Modifier.fillMaxSize(),
-        color = Color(0xFFF5F5DC)
+        color = background
     ) {
         LazyColumn(
             modifier = Modifier
@@ -109,7 +119,7 @@ fun CalendarScreen(
 
                     FloatingActionButton(
                         onClick = { showAddDialog = true },
-                        containerColor = Color(0xFFB2D8B2),
+                        containerColor = accentColor,
                         contentColor = Color(0xFF27500A),
                         modifier = Modifier.size(48.dp)
                     ) {
@@ -126,6 +136,8 @@ fun CalendarScreen(
                 MonthlyCalendarCard(
                     currentMonth = currentMonth,
                     selectedDay = selectedDay,
+                    cardColor = cardColor,
+                    accentColor = accentColor,
                     events = state.events,
                     onPreviousMonth = {
                         currentMonth = (currentMonth.clone() as Calendar).apply {
@@ -166,6 +178,8 @@ fun CalendarScreen(
                 items(selectedEvents) { event ->
                     EventCard(
                         event = event,
+                        cardColor = cardColor,
+                        accentColor = accentColor,
                         onToggleCompleted = {
                             viewModel.deleteEvent(event.id)
                         }
@@ -189,6 +203,8 @@ fun CalendarScreen(
                 items(upcomingEvents) { event ->
                     EventCard(
                         event = event,
+                        cardColor = cardColor,
+                        accentColor = accentColor,
                         onToggleCompleted = {
                             viewModel.deleteEvent(event.id)
                         }
@@ -237,10 +253,12 @@ private fun MonthlyCalendarCard(
     currentMonth: Calendar,
     selectedDay: Int,
     events: List<CalendarEventDto>,
+    cardColor: Color,
+    accentColor: Color,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
     onDaySelected: (Int) -> Unit
-) {
+){
     val monthTitle = SimpleDateFormat(
         "MMMM yyyy",
         Locale("es", "GT")
@@ -252,7 +270,7 @@ private fun MonthlyCalendarCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+        colors = CardDefaults.cardColors(containerColor = cardColor)
     ) {
         Column(
             modifier = Modifier.padding(18.dp),
@@ -299,6 +317,7 @@ private fun MonthlyCalendarCard(
                             selectedDay = selectedDay,
                             currentMonth = currentMonth,
                             events = events,
+                            accentColor = accentColor,
                             onDaySelected = onDaySelected,
                             modifier = Modifier.weight(1f)
                         )
@@ -315,9 +334,10 @@ private fun DayCell(
     selectedDay: Int,
     currentMonth: Calendar,
     events: List<CalendarEventDto>,
+    accentColor: Color,
     onDaySelected: (Int) -> Unit,
     modifier: Modifier = Modifier
-) {
+){
     if (day == null) {
         Box(
             modifier = modifier
@@ -348,13 +368,13 @@ private fun DayCell(
     ) {
         Surface(
             shape = CircleShape,
-            color = if (isSelected) Color(0xFFB2D8B2) else Color.Transparent,
+            color = if (isSelected) accentColor else Color.Transparent,
             modifier = Modifier.size(34.dp)
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Text(
                     text = day.toString(),
-                    color = if (isSelected) Color(0xFF27500A) else Color(0xFF333333),
+                    color = if (isSelected) accentColor else Color(0xFF333333),
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                 )
             }
@@ -375,11 +395,13 @@ private fun DayCell(
 @Composable
 private fun EventCard(
     event: CalendarEventDto,
+    cardColor: Color,
+    accentColor: Color,
     onToggleCompleted: () -> Unit
 ) {
     Card(
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+        colors = CardDefaults.cardColors(containerColor = cardColor)
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
@@ -396,7 +418,7 @@ private fun EventCard(
                 Text(
                     text = event.titulo,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF27500A)
+                    color = accentColor
                 )
 
                 if (event.descripcion.isNotBlank()) {

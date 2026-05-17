@@ -18,12 +18,21 @@ import androidx.compose.ui.unit.dp
 import com.example.carpediem.data.local.DatabaseProvider
 import com.example.carpediem.data.remote.firebase.SubjectRemoteDataSource
 import com.example.carpediem.data.repository.SubjectRepository
+import com.example.carpediem.ui.theme.EmotionColorManager
+import com.example.carpediem.ui.theme.emotionAccentColor
+import com.example.carpediem.ui.theme.emotionBackgroundColor
+import com.example.carpediem.ui.theme.emotionCardColor
 
 @Composable
 fun NotesScreen(
     onSubjectClick: (String) -> Unit
 ) {
     val context = LocalContext.current
+
+    val nivel by EmotionColorManager.nivelEmocion.collectAsState()
+    val background = emotionBackgroundColor(nivel)
+    val cardColor = emotionCardColor(nivel)
+    val accentColor = emotionAccentColor(nivel)
 
     val db = remember { DatabaseProvider.getDatabase(context) }
     val remote = remember { SubjectRemoteDataSource() }
@@ -46,12 +55,13 @@ fun NotesScreen(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF5F5DC))
+            .background(background)
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
             HeaderNotes(
+                accentColor = accentColor,
                 onAddClick = { showCreateDialog = true }
             )
         }
@@ -59,6 +69,8 @@ fun NotesScreen(
         if (subjects.isEmpty()) {
             item {
                 EmptyNotesCard(
+                    cardColor = cardColor,
+                    accentColor = accentColor,
                     onAddClick = { showCreateDialog = true }
                 )
             }
@@ -66,6 +78,7 @@ fun NotesScreen(
             items(subjects) { subject ->
                 SubjectCard(
                     name = subject.name,
+                    cardColor = cardColor,
                     onClick = {
                         onSubjectClick(subject.id)
                     },
@@ -85,6 +98,7 @@ fun NotesScreen(
     if (showCreateDialog) {
         CreateSubjectDialog(
             value = newSubject,
+            accentColor = accentColor,
             onValueChange = { newSubject = it },
             onDismiss = {
                 showCreateDialog = false
@@ -152,6 +166,7 @@ fun NotesScreen(
 
 @Composable
 private fun HeaderNotes(
+    accentColor: Color,
     onAddClick: () -> Unit
 ) {
     Row(
@@ -181,7 +196,7 @@ private fun HeaderNotes(
         Button(
             onClick = onAddClick,
             colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFFB2D8B2),
+                containerColor = accentColor,
                 contentColor = Color(0xFF27500A)
             ),
             shape = RoundedCornerShape(14.dp)
@@ -194,6 +209,7 @@ private fun HeaderNotes(
 @Composable
 private fun SubjectCard(
     name: String,
+    cardColor: Color,
     onClick: () -> Unit,
     onDeleteClick: () -> Unit
 ) {
@@ -201,7 +217,7 @@ private fun SubjectCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color.White
+            containerColor = cardColor
         )
     ) {
         Row(
@@ -259,13 +275,15 @@ private fun SubjectCard(
 
 @Composable
 private fun EmptyNotesCard(
+    cardColor: Color,
+    accentColor: Color,
     onAddClick: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color.White
+            containerColor = cardColor
         )
     ) {
         Column(
@@ -299,7 +317,7 @@ private fun EmptyNotesCard(
             Button(
                 onClick = onAddClick,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFB2D8B2),
+                    containerColor = accentColor,
                     contentColor = Color(0xFF27500A)
                 ),
                 shape = RoundedCornerShape(14.dp)
@@ -313,6 +331,7 @@ private fun EmptyNotesCard(
 @Composable
 private fun CreateSubjectDialog(
     value: String,
+    accentColor: Color,
     onValueChange: (String) -> Unit,
     onDismiss: () -> Unit,
     onSave: () -> Unit
@@ -350,7 +369,7 @@ private fun CreateSubjectDialog(
             Button(
                 onClick = onSave,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFB2D8B2),
+                    containerColor = accentColor,
                     contentColor = Color(0xFF27500A)
                 )
             ) {

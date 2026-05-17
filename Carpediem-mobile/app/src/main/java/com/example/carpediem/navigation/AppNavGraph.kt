@@ -5,6 +5,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -80,7 +81,10 @@ fun AppNavGraph() {
             CheckInScreen(
                 onFinishClick = {
                     navController.navigate(Routes.Dashboard.route) {
-                        popUpTo(Routes.CheckIn.route) { inclusive = true }
+                        popUpTo(Routes.CheckIn.route) {
+                            inclusive = true
+                        }
+                        launchSingleTop = true
                     }
                 }
             )

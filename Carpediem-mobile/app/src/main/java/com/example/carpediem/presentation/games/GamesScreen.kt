@@ -1,18 +1,21 @@
 package com.example.carpediem.presentation.games
 
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
-import androidx.compose.ui.Modifier
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.carpediem.ui.theme.EmotionColorManager
+import com.example.carpediem.ui.theme.emotionAccentColor
+import com.example.carpediem.ui.theme.emotionBackgroundColor
+import com.example.carpediem.ui.theme.emotionCardColor
 
 data class GameItem(
     val id: String,
@@ -23,37 +26,24 @@ data class GameItem(
 )
 
 private val games = listOf(
-    GameItem(
-        id = "flashcards",
-        emoji = "🃏",
-        title = "Flashcards",
-        description = "La IA genera tarjetas de repaso desde los temas de tu materia.",
-        available = true
-    ),
-    GameItem(
-        id = "crossword",
-        emoji = "🔤",
-        title = "Crucigrama",
-        description = "Próximamente: crucigrama con conceptos clave de tus apuntes.",
-        available = false
-    ),
-    GameItem(
-        id = "trivia",
-        emoji = "⚡",
-        title = "Trivia rápida",
-        description = "Próximamente: responde preguntas rápidas antes de un examen.",
-        available = false
-    )
+    GameItem("flashcards", "🃏", "Flashcards", "La IA genera tarjetas de repaso desde los temas de tu materia.", true),
+    GameItem("crossword", "🔤", "Crucigrama", "Próximamente: crucigrama con conceptos clave de tus apuntes.", false),
+    GameItem("trivia", "⚡", "Trivia rápida", "Próximamente: responde preguntas rápidas antes de un examen.", false)
 )
 
 @Composable
 fun GamesScreen(
     onFlashcardsClick: () -> Unit
 ) {
+    val nivel by EmotionColorManager.nivelEmocion.collectAsState()
+    val background = emotionBackgroundColor(nivel)
+    val cardColor = emotionCardColor(nivel)
+    val accentColor = emotionAccentColor(nivel)
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF5F5DC))
+            .background(background)
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -78,6 +68,8 @@ fun GamesScreen(
             item {
                 GameCard(
                     game = game,
+                    cardColor = cardColor,
+                    accentColor = accentColor,
                     onClick = {
                         if (game.id == "flashcards" && game.available) {
                             onFlashcardsClick()
@@ -96,6 +88,8 @@ fun GamesScreen(
 @Composable
 private fun GameCard(
     game: GameItem,
+    cardColor: Color,
+    accentColor: Color,
     onClick: () -> Unit
 ) {
     Card(
@@ -104,7 +98,7 @@ private fun GameCard(
             .clickable(enabled = game.available) { onClick() },
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color.White.copy(
+            containerColor = cardColor.copy(
                 alpha = if (game.available) 1f else 0.65f
             )
         )
@@ -123,7 +117,7 @@ private fun GameCard(
                 )
 
                 Surface(
-                    color = if (game.available) Color(0xFFE1F5EE) else Color(0xFFF0F0E8),
+                    color = if (game.available) accentColor.copy(alpha = 0.45f) else Color(0xFFF0F0E8),
                     shape = RoundedCornerShape(50)
                 ) {
                     Text(

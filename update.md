@@ -10,3 +10,8 @@
 - Se actualizó ícono del botón guardar conversación
 - Se ajustó el comportamiento del sidebar (oculto por defecto)
 - Pequeños ajustes de diseño y detalles visuales en la interfaz
+
+## Update 3 - 16/05/2026 (Mobile -lizardo)
+- Conexion de colores 
+- Revision de tokens del Capitan 
+- Se mejoro el dashboard para que se vean los eventos 
